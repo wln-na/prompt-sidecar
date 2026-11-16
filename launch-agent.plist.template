@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>CODEX_BIN</key>
+        <string>__CODEX_BIN__</string>
+        <key>PATH</key>
+        <string>__PATH__</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+    <key>KeepAlive</key>
+    <true/>
+    <key>Label</key>
+    <string>__LABEL__</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PYTHON_BIN__</string>
+        <string>__SERVER_SCRIPT__</string>
+        <string>--port</string>
+        <string>__PORT__</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardErrorPath</key>
+    <string>__ERROR_LOG__</string>
+    <key>StandardOutPath</key>
+    <string>__OUTPUT_LOG__</string>
+    <key>WorkingDirectory</key>
+    <string>__PROJECT_DIR__</string>
+</dict>
+</plist>

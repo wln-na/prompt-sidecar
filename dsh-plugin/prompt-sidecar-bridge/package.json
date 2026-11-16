@@ -1,0 +1,24 @@
+{
+    "name": "prompt-sidecar-bridge",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Localhost bridge that lets Prompt Sidecar queue or steer prompts into DSH sessions.",
+    "exports": {
+        ".": "./index.js",
+        "./locale/*.json": "./locale/*.json",
+        "./icon": "./icon.svg"
+    },
+    "files": [
+        "index.js",
+        "cordis.patch.yml",
+        "locale/*.json",
+        "docs",
+        "icon.svg"
+    ],
+    "dsh": {
+        "bundle": {
+            "patch": "./cordis.patch.yml"
+        }
+    }
+}

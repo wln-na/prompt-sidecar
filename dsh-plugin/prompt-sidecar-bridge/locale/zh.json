@@ -1,0 +1,7 @@
+{
+    "meta": {
+        "title": "Prompt Sidecar 桥接",
+        "description": "在本地启动一个桥接服务，让 Prompt Sidecar 面板可以把润色后的提示词以 queue 或 steer 方式送入 DSH 会话。仅绑定 127.0.0.1，使用 token 文件鉴权。",
+        "detail": "docs/DETAIL.md"
+    }
+}

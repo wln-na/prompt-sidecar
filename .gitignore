@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.server.pid
+*.log
+sidecar.config.json
+launch-agent.plist
+.env
+.env.*
+*.token
+.DS_Store

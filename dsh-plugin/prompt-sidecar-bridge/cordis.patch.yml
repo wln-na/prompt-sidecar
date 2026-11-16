@@ -1,0 +1,6 @@
+- insert:
+    - id: prompt-sidecar-bridge
+      name: prompt-sidecar-bridge
+      config:
+        port: 8766
+        tokenFile: ~/.dsh/prompt-sidecar-bridge.token

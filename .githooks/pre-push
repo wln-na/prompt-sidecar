@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+remote_name="${1:-origin}"
+remote_url="${2:-}"
+root_dir="$(git rev-parse --show-toplevel)"
+
+"$root_dir/scripts/secret-scan.sh" --check-remote "$remote_url"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ -z "${local_ref:-}" ] && continue
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        continue
+    fi
+    echo "[pre-push] $remote_name $local_ref -> $remote_ref"
+done

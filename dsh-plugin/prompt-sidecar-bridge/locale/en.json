@@ -1,0 +1,7 @@
+{
+    "meta": {
+        "title": "Prompt Sidecar bridge",
+        "description": "Runs a localhost bridge so the Prompt Sidecar panel can queue or steer prompts into DSH sessions. Binds 127.0.0.1 only and authenticates with a token file.",
+        "detail": "docs/DETAIL.md"
+    }
+}

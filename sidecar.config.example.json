@@ -1,0 +1,16 @@
+{
+    "bridges": {
+        "codex": {
+            "enabled": true,
+            "home": "~/.codex"
+        },
+        "dsh": {
+            "enabled": true,
+            "home": "~/.dsh",
+            "sessions_dir": "~/.dsh/sessions",
+            "workspace_storage": "~/.dsh/storages/workspace.json",
+            "bridge_url": "http://127.0.0.1:8766",
+            "token_file": "~/.dsh/prompt-sidecar-bridge.token"
+        }
+    }
+}
