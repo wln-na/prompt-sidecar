@@ -1,0 +1,25 @@
+{
+  "viewport": {
+    "width": 1280,
+    "height": 960
+  },
+  "enter": {
+    "draft": "第一行\n",
+    "emptyVisible": true,
+    "sendDisabled": true
+  },
+  "metaEnterPolishes": true,
+  "ctrlEnterPolishes": true,
+  "analysis": {
+    "analysisVisible": true,
+    "columns": "609.836px 670.164px",
+    "decisionHidden": true,
+    "mode": "Agent",
+    "overflow": false
+  },
+  "sessionSearchAndSwitch": true,
+  "resultEditable": true,
+  "restoreResult": true,
+  "sendPreviewOnly": true,
+  "consoleErrors": []
+}

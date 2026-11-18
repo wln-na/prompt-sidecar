@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Prompt Sidecar</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -22,117 +23,181 @@
             </div>
         </header>
         <main class="workspace">
-            <section class="column">
-                <div class="section-heading">
-                    <div><span class="eyebrow">INPUT</span><h2>原始草稿</h2></div>
-                    <button id="sample-button" class="text-button" type="button">填入示例</button>
+            <section class="column input-column">
+                <div class="section-heading session-heading">
+                    <div><span class="eyebrow">SESSION</span><h2>当前会话</h2></div>
                 </div>
-                <div class="context-card">
-                    <div class="context-head">
+                <div class="context-card session-card">
+                    <div class="session-identity">
+                        <div class="session-avatar" aria-hidden="true">✦</div>
+                        <div class="session-identity-copy">
+                            <div id="binding-summary" class="binding-summary">自动检测中...</div>
+                            <div id="binding-note" class="binding-note">
+                                优先使用 Sidecar 标签页所属会话，不猜测最新文件。
+                            </div>
+                        </div>
+                        <div class="session-card-actions">
+                            <button id="open-session-modal" class="small-button" type="button">选择会话</button>
+                            <button id="open-settings-modal" class="icon-button" type="button" title="桥接设置">⚙</button>
+                        </div>
+                    </div>
+                    <div class="context-head session-context-status">
                         <div class="context-title">
                             <span class="context-dot"></span>
-                            <strong>当前会话上下文</strong>
+                            <strong>上下文</strong>
                             <span id="context-meta" class="muted">正在读取...</span>
                         </div>
-                        <button id="refresh-context" class="icon-button" type="button" title="刷新上下文">↻</button>
+                        <div class="context-actions">
+                            <button id="refresh-context" class="icon-button" type="button" title="刷新上下文">↻</button>
+                        </div>
                     </div>
                     <details>
                         <summary>查看自动载入的上下文</summary>
                         <pre id="context-preview">正在读取当前会话...</pre>
                     </details>
-                    <div class="binding-row">
-                        <span class="binding-label">绑定会话</span>
-                        <span id="binding-summary" class="binding-summary">自动检测中...</span>
-                        <button id="open-settings-modal" class="icon-button" type="button" title="桥接设置">⚙</button>
-                        <button id="open-session-modal" class="small-button" type="button">会话列表</button>
-                        <button id="refresh-sessions" class="small-button ghost" type="button" title="刷新会话列表">刷新</button>
+                    <div id="integration-status" class="integration-card hidden" aria-live="polite">
+                        <div class="integration-card-head">
+                            <strong>AgentXRay 任务连接</strong>
+                            <span id="integration-expiry" class="integration-expiry"></span>
+                        </div>
+                        <div id="integration-target" class="integration-target"></div>
+                        <div id="integration-evidence" class="integration-evidence"></div>
                     </div>
-                    <div id="binding-note" class="binding-note">
-                        优先使用 Sidecar 标签页所属会话，不猜测最新文件。
+                    <div id="target-model-label" class="session-model" aria-live="polite">
+                        目标模型 · 未知（正在读取）
                     </div>
                     <label class="toggle-row">
                         <input id="use-context" type="checkbox" checked>
                         <span>润色时参考当前会话上下文</span>
                     </label>
                 </div>
-                <label class="field-label" for="draft">想发送给当前会话的提示词</label>
-                <textarea id="draft" class="editor" spellcheck="false"
-                    placeholder="在这里写一个粗糙的草稿，例如：帮我看看这个插件下一步应该怎么改"></textarea>
+
+                <div class="section-heading draft-heading">
+                    <div><span class="eyebrow">DRAFT</span><h2>撰写草稿</h2></div>
+                    <button id="sample-button" class="text-button" type="button">填入示例</button>
+                </div>
+                <label class="field-label draft-label" for="draft">想发送给当前会话的提示词</label>
+                <textarea id="draft" class="editor draft-editor" spellcheck="false"
+                    placeholder="在这里输入你的提示词草稿..."></textarea>
                 <div class="editor-footer">
                     <span id="draft-count">0 字</span>
-                    <span class="shortcut">⌘ Enter 润色</span>
+                    <span class="shortcut">Enter 换行 · ⌘ / Ctrl + Enter 润色</span>
                 </div>
-                <div class="mode-row">
-                    <span class="field-label compact">模式</span>
-                    <div id="mode-group" class="mode-group" role="group" aria-label="润色模式">
-                        <button class="mode active" data-mode="quick" type="button">快速</button>
-                        <button class="mode" data-mode="structured" type="button">结构化</button>
-                        <button class="mode" data-mode="agent" type="button">Agent</button>
-                        <button class="mode" data-mode="system" type="button">系统提示词</button>
+
+                <details class="advanced-options">
+                    <summary>高级选项</summary>
+                    <div class="advanced-options-body">
+                        <div class="mode-row">
+                            <span class="field-label compact">模式</span>
+                            <div id="mode-group" class="mode-group" role="group" aria-label="润色模式">
+                                <button class="mode active" data-mode="quick" type="button">快速</button>
+                                <button class="mode" data-mode="structured" type="button">结构化</button>
+                                <button class="mode" data-mode="agent" type="button">Agent</button>
+                                <button class="mode" data-mode="system" type="button">系统提示词</button>
+                            </div>
+                        </div>
+                        <div class="output-rules">
+                            <div class="output-rules-title">
+                                <span class="field-label compact">输出规则</span>
+                                <span class="rule-hint">会写入润色后的提示词</span>
+                            </div>
+                            <div class="rule-grid">
+                                <label class="rule-field">
+                                    <span>风格</span>
+                                    <select id="output-style">
+                                        <option value="concise" selected>精简</option>
+                                        <option value="standard">标准</option>
+                                        <option value="detailed">详细</option>
+                                    </select>
+                                </label>
+                                <label class="rule-field rule-structure">
+                                    <span>结构</span>
+                                    <input id="output-structure" type="text"
+                                        value="结论,变更,验证,限制,下一步">
+                                </label>
+                            </div>
+                        </div>
+                        <details class="handoff-details">
+                            <summary>加载 AgentXRay 任务信息（高级）</summary>
+                            <p class="field-hint">仅用于本轮分析。若与当前会话冲突，系统会要求确认，不会自动选择。</p>
+                            <textarea id="handoff-packet" class="handoff-editor" spellcheck="false"
+                                placeholder='{"source":"agentxray","objective":"...","current_state":"...","confidence":"medium"}'></textarea>
+                        </details>
                     </div>
-                </div>
-                <div class="output-rules">
-                    <div class="output-rules-title">
-                        <span class="field-label compact">输出规则</span>
-                        <span class="rule-hint">会写入润色后的提示词</span>
-                    </div>
-                    <div class="rule-grid">
-                        <label class="rule-field">
-                            <span>风格</span>
-                            <select id="output-style">
-                                <option value="concise" selected>精简</option>
-                                <option value="standard">标准</option>
-                                <option value="detailed">详细</option>
-                            </select>
-                        </label>
-                        <label class="rule-field rule-structure">
-                            <span>结构</span>
-                            <input id="output-structure" type="text"
-                                value="结论,变更,验证,限制,下一步">
-                        </label>
-                    </div>
-                </div>
+                </details>
 
                 <button id="polish-button" class="primary-button" type="button">
                     <span class="button-label">润色草稿</span><span class="button-arrow">→</span>
                 </button>
+                <button id="continue-button" class="secondary-button continue-button" type="button">
+                    <span class="button-label">继续已有任务（可选）</span><span class="button-arrow">→</span>
+                </button>
+                <div id="bridge-status" class="bridge-status connection-status empty" aria-live="polite">
+                    绑定会话后显示连接状态与能力
+                </div>
             </section>
             <section class="column">
                 <div class="section-heading">
                     <div><span class="eyebrow">OUTPUT</span><h2>可发送版本</h2></div>
-                    <span id="status-badge" class="status-badge">等待润色</span>
-                </div>
-                <div class="result-shell">
-                    <div id="empty-state" class="empty-state">
-                        <div class="empty-orbit"><span></span><span></span><span></span></div>
-                        <h3>独立上下文，干净输出</h3>
-                        <p>润色会单独调用模型。主会话只会收到你最终粘贴进去的内容。</p>
-                    </div>
-                    <textarea id="result" class="editor result-editor" readonly
-                        placeholder="润色结果会出现在这里"></textarea>
-                    <div id="loading-overlay" class="loading-overlay hidden">
-                        <div class="spinner"></div><span>模型正在整理提示词...</span>
-                    </div>
-                </div>
-                <label class="toggle-row">
-                    <input id="auto-copy" type="checkbox">
-                    <span>润色完成后自动复制到剪贴板</span>
-                </label>
-                <div class="send-mode-row">
-                    <span class="field-label compact">发送方式</span>
-                    <div id="send-mode-group" class="send-mode-group" role="group" aria-label="发送方式">
-                        <button class="send-mode active" data-send-mode="queue" type="button">排队</button>
-                        <button class="send-mode" data-send-mode="steer" type="button" title="打断当前轮次并插入（仅 DSH 支持）">插入</button>
+                    <div class="result-heading-actions">
+                        <div class="result-panel-switch" role="tablist" aria-label="结果面板">
+                            <button id="analysis-panel-tab" class="result-panel-tab active" type="button"
+                                role="tab" aria-selected="true" aria-controls="analysis-panel">
+                                分析结果
+                            </button>
+                            <button id="decision-panel-tab" class="result-panel-tab" type="button"
+                                role="tab" aria-selected="false" aria-controls="decision-panel">
+                                需要决策<span id="decision-badge" class="decision-badge hidden">0</span>
+                            </button>
+                        </div>
+                        <span id="status-badge" class="status-badge">等待润色</span>
                     </div>
                 </div>
-                <div class="result-actions">
-                    <button id="send-button" class="send-button" type="button" disabled>发送到当前会话</button>
-                    <button id="copy-button" class="secondary-button" type="button" disabled>复制结果</button>
-                    <button id="restore-button" class="secondary-button" type="button" disabled>恢复原文</button>
-                    <button id="repolish-button" class="ghost-button" type="button" disabled>重新润色</button>
+                <div id="analysis-panel" class="result-panel" role="tabpanel" aria-labelledby="analysis-panel-tab">
+                    <div id="continuation-panel" class="continuation-panel hidden" aria-live="polite"></div>
+                    <div class="result-shell">
+                        <div id="empty-state" class="empty-state">
+                            <div class="prompt-flow-illustration" role="img"
+                                aria-label="原始草稿经过上下文理解和提示词润色后，生成可发送结果">
+                                <img src="/prompt-flow.svg" alt="" width="440" height="184">
+                            </div>
+                            <h3>把草稿变成可发送的提示词</h3>
+                            <p>输入左侧草稿，Sidecar 会结合当前会话上下文进行理解和润色。</p>
+                        </div>
+                        <textarea id="result" class="editor result-editor"
+                            placeholder="润色结果会出现在这里"></textarea>
+                        <div id="loading-overlay" class="loading-overlay hidden">
+                            <div class="spinner"></div><span>模型正在整理提示词...</span>
+                        </div>
+                    </div>
+                    <label class="toggle-row">
+                        <input id="auto-copy" type="checkbox">
+                        <span>润色完成后自动复制到剪贴板</span>
+                    </label>
+                    <div id="send-mode-row" class="send-mode-row">
+                        <span class="field-label compact">发送方式</span>
+                        <div id="send-mode-group" class="send-mode-group" role="group"
+                            aria-label="发送方式" hidden></div>
+                        <span id="send-mode-hint" class="send-mode-hint">绑定会话后读取发送能力</span>
+                    </div>
+                    <div class="result-actions">
+                        <button id="send-button" class="send-button" type="button" disabled>发送到当前会话</button>
+                        <button id="copy-button" class="secondary-button" type="button" disabled>复制结果</button>
+                        <button id="restore-button" class="secondary-button" type="button" disabled>恢复原文</button>
+                        <button id="repolish-button" class="ghost-button" type="button" disabled>重新润色</button>
+                    </div>
+                    <div id="send-effective-model" class="send-effective-model hidden" aria-live="polite"></div>
+                    <div class="tips"><div class="tip-index">01</div><p>发送方式和发送按钮由当前桥接的 capabilities 决定；排队与插入只是已声明的模式名称。</p></div>
+                    <div class="tips"><div class="tip-index">02</div><p>会话列表统一展示所有已启用桥接；⚙ 可编辑通用桥接配置并查看健康状态与能力徽标。</p></div>
                 </div>
-                <div class="tips"><div class="tip-index">01</div><p>发送方式“排队”追加一个新 turn（Codex 用 codex queue，DSH 用 queue prompt）；“插入”仅对 DSH 会话可用。</p></div>
-                <div class="tips"><div class="tip-index">02</div><p>点“会话列表”按框架分区选择 Codex 或 DSH 会话；Codex 桌面端仍会优先自动绑定右侧面板会话。⚙ 打开桥接设置。</p></div>
+                <div id="decision-panel" class="result-panel hidden" role="tabpanel"
+                    aria-labelledby="decision-panel-tab" aria-live="polite">
+                    <div id="decision-empty" class="decision-empty">
+                        <h3>当前没有需要你决定的事项</h3>
+                        <p>当分析发现阻塞、信息不足或冲突时，需要你决定的内容会显示在这里。</p>
+                    </div>
+                    <div id="decision-content" class="decision-content hidden"></div>
+                </div>
             </section>
         </main>
     </div>
@@ -144,7 +209,7 @@
             </div>
             <div id="settings-body" class="settings-body"></div>
             <div class="modal-foot">
-                <span class="muted">路径留空恢复官方默认</span>
+                <span class="muted">留空沿用桥接默认值</span>
                 <div class="modal-actions">
                     <button id="settings-cancel" class="small-button ghost" type="button">取消</button>
                     <button id="settings-save" class="small-button" type="button">保存</button>
@@ -153,16 +218,25 @@
         </div>
     </div>
     <div id="session-modal" class="modal-overlay hidden">
-        <div class="modal" role="dialog" aria-label="选择会话">
+        <div class="modal session-picker-modal" role="dialog" aria-label="选择会话">
             <div class="modal-head">
-                <div><span class="eyebrow">SESSIONS</span><h2>选择会话</h2></div>
-                <button id="close-session-modal" class="icon-button" type="button" title="关闭">✕</button>
+                <div>
+                    <span class="eyebrow">SESSIONS</span>
+                    <h2>选择会话</h2>
+                    <p class="modal-subtitle">按 Agent 平台快速定位目标会话</p>
+                </div>
+                <div class="modal-head-actions">
+                    <button id="refresh-sessions" class="small-button ghost" type="button" title="刷新会话列表">刷新列表</button>
+                    <button id="close-session-modal" class="icon-button" type="button" title="关闭">✕</button>
+                </div>
             </div>
-            <input id="session-filter" class="modal-filter" type="search" placeholder="按标题或路径过滤..." autocomplete="off">
-            <div id="session-list" class="session-list"></div>
+            <input id="session-filter" class="modal-filter" type="search" placeholder="按标题、路径或会话 ID 搜索..." autocomplete="off">
+            <div class="session-picker-body">
+                <nav id="session-platforms" class="session-platforms" aria-label="Agent 平台"></nav>
+                <div id="session-list" class="session-list"></div>
+            </div>
             <div class="modal-foot">
                 <span id="session-count" class="muted"></span>
-                <button id="modal-refresh" class="small-button ghost" type="button">刷新列表</button>
             </div>
         </div>
     </div>

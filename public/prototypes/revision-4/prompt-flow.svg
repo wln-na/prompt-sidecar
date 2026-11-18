@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 184" aria-hidden="true" focusable="false">
+                                <style>:root{--sans:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}.flow-line{fill:none;stroke:#aab6d8;stroke-width:2;stroke-dasharray:5 6;animation:flow-dash 2.4s linear infinite}.flow-pulse{fill:#3157d5;animation:flow-pulse 2.4s ease-in-out infinite}.flow-pulse.purple{fill:#7c3aed;animation-delay:1.2s}.flow-card rect:first-child{fill:url(#flow-card);stroke:#dce3f6;stroke-width:1.2}.flow-card text{fill:#53617b;font-family:var(--sans);font-size:10px;font-weight:700}.flow-card-bar{fill:#3157d5}.flow-card-bar.result{fill:#38a77d}.flow-card-line{fill:#cbd5ee}.flow-card-line.short{opacity:.8}.flow-card-line.shorter{opacity:.56}.flow-icon-ring{fill:#edf1ff;stroke:#c7d1fa;stroke-width:1.5}.flow-icon-spark{fill:url(#flow-glow)}.flow-context-dot{fill:#8ea1df}.flow-check{fill:#e9f8f2;stroke:#a8dfca;stroke-width:1.5}.flow-check-mark{fill:none;stroke:#167a5b;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}@keyframes flow-dash{to{stroke-dashoffset:-22}}@keyframes flow-pulse{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.25)}}@media(prefers-reduced-motion:reduce){.flow-line,.flow-pulse{animation:none}}</style><defs>
+                                    <linearGradient id="flow-glow" x1="0" x2="1" y1="0" y2="1">
+                                        <stop offset="0" stop-color="#3157d5" />
+                                        <stop offset="1" stop-color="#7c3aed" />
+                                    </linearGradient>
+                                    <linearGradient id="flow-card" x1="0" x2="1" y1="0" y2="1">
+                                        <stop offset="0" stop-color="#ffffff" />
+                                        <stop offset="1" stop-color="#f2f5ff" />
+                                    </linearGradient>
+                                    <filter id="flow-shadow" x="-20%" y="-30%" width="140%" height="170%">
+                                        <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#3157d5"
+                                            flood-opacity=".16" />
+                                    </filter>
+                                    <marker id="flow-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4"
+                                        orient="auto">
+                                        <path d="M0 0L8 4L0 8Z" fill="#8998c9" />
+                                    </marker>
+                                </defs>
+                                <path class="flow-line" d="M112 92H162" marker-end="url(#flow-arrow)" />
+                                <path class="flow-line" d="M278 92H328" marker-end="url(#flow-arrow)" />
+                                <circle class="flow-pulse" cx="136" cy="92" r="3" />
+                                <circle class="flow-pulse purple" cx="302" cy="92" r="3" />
+                                <g class="flow-card draft-card" filter="url(#flow-shadow)">
+                                    <rect x="12" y="45" width="100" height="94" rx="15" />
+                                    <rect class="flow-card-bar" x="27" y="61" width="28" height="6" rx="3" />
+                                    <rect class="flow-card-line" x="27" y="78" width="65" height="5" rx="2.5" />
+                                    <rect class="flow-card-line short" x="27" y="91" width="48" height="5" rx="2.5" />
+                                    <rect class="flow-card-line shorter" x="27" y="104" width="57" height="5" rx="2.5" />
+                                    <text x="27" y="127">原始草稿</text>
+                                </g>
+                                <g class="flow-card sidecar-card" filter="url(#flow-shadow)">
+                                    <rect x="162" y="24" width="116" height="136" rx="19" />
+                                    <circle class="flow-icon-ring" cx="220" cy="70" r="25" />
+                                    <path class="flow-icon-spark" d="M220 52L224 65L237 70L224 75L220 88L216 75L203 70L216 65Z" />
+                                    <circle class="flow-context-dot" cx="203" cy="116" r="4" />
+                                    <circle class="flow-context-dot" cx="220" cy="116" r="4" />
+                                    <circle class="flow-context-dot" cx="237" cy="116" r="4" />
+                                    <text x="220" y="142" text-anchor="middle">理解 · 润色</text>
+                                </g>
+                                <g class="flow-card result-card" filter="url(#flow-shadow)">
+                                    <rect x="328" y="45" width="100" height="94" rx="15" />
+                                    <circle class="flow-check" cx="352" cy="68" r="10" />
+                                    <path class="flow-check-mark" d="M347 68L351 72L358 64" />
+                                    <rect class="flow-card-line" x="27" y="78" width="65" height="5" rx="2.5" transform="translate(328)" />
+                                    <rect class="flow-card-line short" x="27" y="91" width="48" height="5" rx="2.5" transform="translate(328)" />
+                                    <rect class="flow-card-bar result" x="27" y="111" width="45" height="6" rx="3" transform="translate(328)" />
+                                    <text x="343" y="127">可发送结果</text>
+                                </g>
+                            </svg>

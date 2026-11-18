@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 import plistlib
+import shutil
 from pathlib import Path
 
 
@@ -41,13 +42,15 @@ def generate_launch_agent(
     error_log = log_path / "prompt-sidecar.err.log"
     path_entries = [
         str(Path(codex_path).parent),
+        str(Path(shutil.which("node") or "").parent) if shutil.which("node") else "",
+        "/opt/homebrew/bin",
         "/usr/local/bin",
         "/usr/bin",
         "/bin",
         "/usr/sbin",
         "/sbin",
     ]
-    path_entries = list(dict.fromkeys(path_entries))
+    path_entries = list(dict.fromkeys(entry for entry in path_entries if entry))
 
     template["Label"] = label
     template["EnvironmentVariables"] = {

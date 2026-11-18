@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+    <title id="title">Prompt Sidecar</title>
+    <desc id="desc">蓝紫渐变背景上的 Prompt Sidecar 字母 P 与提示词流动节点</desc>
+    <defs>
+        <linearGradient id="background" x1="8" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#3157D5" />
+            <stop offset="1" stop-color="#7C3AED" />
+        </linearGradient>
+        <linearGradient id="shine" x1="20" y1="14" x2="46" y2="50" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FFFFFF" stop-opacity=".98" />
+            <stop offset="1" stop-color="#E7ECFF" stop-opacity=".9" />
+        </linearGradient>
+    </defs>
+    <rect width="64" height="64" rx="16" fill="url(#background)" />
+    <path d="M17 13v38h7V39h10c9 0 14-5 14-13s-5-13-14-13H17Zm7 6h10c5 0 8 2 8 7s-3 7-8 7H24V19Z" fill="url(#shine)" />
+    <path d="M45 15.5 47 21l5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2 2-5.5Z" fill="#FFFFFF" fill-opacity=".92" />
+    <circle cx="47" cy="45" r="3" fill="#8EE4C3" />
+    <circle cx="54" cy="38" r="2" fill="#BFCBFF" />
+    <path d="M48.5 43.5 52.5 40" fill="none" stroke="#DDE4FF" stroke-width="1.5" stroke-linecap="round" />
+</svg>
