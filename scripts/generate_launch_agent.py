@@ -32,7 +32,7 @@ def generate_launch_agent(
     python_path = executable_path(python_bin, "Python")
     codex_path = executable_path(codex_bin, "Codex")
     project_path = project_dir.expanduser().resolve()
-    server_script = project_path / "server.py"
+    server_script = project_path / "backend" / "server.py"
     if not server_script.is_file():
         raise ValueError(f"server.py not found: {server_script}")
 
@@ -58,6 +58,10 @@ def generate_launch_agent(
         "PATH": ":".join(path_entries),
         "PYTHONUNBUFFERED": "1",
     }
+    for name in ("CODEX_HOME",):
+        value = os.environ.get(name, "").strip()
+        if value:
+            template["EnvironmentVariables"][name] = str(Path(value).expanduser().resolve())
     template["ProgramArguments"] = [
         python_path,
         str(server_script),

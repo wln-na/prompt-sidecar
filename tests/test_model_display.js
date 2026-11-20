@@ -36,7 +36,7 @@ const sandbox = vm.createContext({
     history: { replaceState() {} },
     setTimeout, clearTimeout,
 });
-const app = fs.readFileSync(path.join(__dirname, "../app.js"), "utf8");
+const app = fs.readFileSync(path.join(__dirname, "../frontend/app.js"), "utf8");
 vm.runInContext(app.slice(0, app.indexOf('polishButton.addEventListener("click"')), sandbox);
 const run = (code) => vm.runInContext(code, sandbox);
 

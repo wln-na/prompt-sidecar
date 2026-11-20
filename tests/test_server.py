@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 import server
 from bridges import BridgeSendRequest
 
@@ -102,6 +102,59 @@ class PromptSidecarTests(unittest.TestCase):
         self.assertIn("style: concise", prompt)
         self.assertIn("structure: 结论 > 变更 > 验证 > 限制 > 下一步", prompt)
         self.assertIn("Do not expose internal labels", prompt)
+
+    def test_agent_prompt_uses_fixed_codex_execution_contract(self) -> None:
+        prompt = server.build_request_prompt("完成这个事项", "agent", "USER: context")
+
+        for phrase in (
+            "Codex 主 Agent",
+            "Planner",
+            "Agent Team",
+            "Subagent",
+            "多会话通信",
+            "可并行的子任务",
+            "统一决策、合并结果",
+            "持续执行，直到完成条件满足",
+            "验证失败时",
+            "只有以下情况才请求人类决策",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, prompt)
+
+        self.assertNotIn("如果支持多 Agent", prompt)
+        self.assertNotIn("否则单 Agent", prompt)
+        self.assertNotIn("fallback", prompt.lower())
+
+    def test_continuation_prompt_does_not_block_ordinary_decisions(self) -> None:
+        prompt = server.render_continuation_prompt(
+            {
+                "status": "needs_user_decision",
+                "decision_type": "ordinary_implementation",
+                "task_goal": "完成当前功能",
+                "completed": [],
+                "evidence": [],
+                "pending": ["选择实现方式"],
+                "blockers": [],
+                "completion_criteria": ["功能通过验证"],
+                "needs_user_confirmation": ["选择实现方式"],
+                "clarifying_questions": ["选择实现方式"],
+                "out_of_scope_suggestions": [],
+            },
+            {"title": "继续实现", "scope": ["完成剩余代码"]},
+        )
+
+        self.assertIn("当前状态：\nin_progress", prompt)
+        self.assertNotIn("先暂停主变更", prompt)
+        self.assertIn("普通实现决策由 Codex 主 Agent 自主选择", prompt)
+        self.assertIn("多会话通信", prompt)
+
+    def test_agent_contract_is_added_when_model_omits_it(self) -> None:
+        result = server.ensure_codex_agent_contract("任务提示", "agent")
+
+        self.assertIn("任务提示", result)
+        self.assertIn("Codex 执行协议：", result)
+        self.assertIn("Agent Team", result)
+        self.assertEqual(server.ensure_codex_agent_contract("任务提示", "quick"), "任务提示")
 
     def test_request_path_without_query(self) -> None:
         self.assertEqual(
@@ -276,8 +329,8 @@ class PromptSidecarTests(unittest.TestCase):
 
 
     def test_frontend_auto_copy_is_opt_in(self) -> None:
-        app_js = (Path(__file__).resolve().parents[1] / "app.js").read_text(encoding="utf-8")
-        index_html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        app_js = (Path(__file__).resolve().parents[1] / "frontend" / "app.js").read_text(encoding="utf-8")
+        index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
         auto_copy_input = '<input id="auto-copy" type="checkbox">'
         self.assertIn(auto_copy_input, index_html)
         self.assertNotIn('<input id="auto-copy" type="checkbox" checked>', index_html)
@@ -309,39 +362,37 @@ class PromptSidecarTests(unittest.TestCase):
         self.assertEqual(result["queue_id"], "queue-1")
 
     def test_frontend_send_contract(self) -> None:
-        app_js = (Path(__file__).resolve().parents[1] / "app.js").read_text(encoding="utf-8")
+        app_js = (Path(__file__).resolve().parents[1] / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn('fetchJson("/api/send"', app_js)
         self.assertIn('sendButton.addEventListener("click", sendToCurrentSession)', app_js)
         self.assertIn('copyButton.addEventListener("click"', app_js)
 
     def test_frontend_task_continuation_contract(self) -> None:
-        app_js = (Path(__file__).resolve().parents[1] / "app.js").read_text(encoding="utf-8")
-        index_html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        app_js = (Path(__file__).resolve().parents[1] / "frontend" / "app.js").read_text(encoding="utf-8")
+        index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="continue-button"', index_html)
-        self.assertIn('id="handoff-packet"', index_html)
         self.assertIn('id="continuation-panel"', index_html)
         self.assertIn('fetchJson("/api/next-step"', app_js)
-        self.assertIn("handoff_packet: handoffPacket.value.trim() || null", app_js)
         self.assertIn("function renderContinuation(data)", app_js)
         self.assertIn("recommendation-tab", app_js)
         self.assertIn('continueButton.addEventListener("click", continueTask)', app_js)
 
     def test_frontend_empty_state_explains_prompt_flow(self) -> None:
-        index_html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
         project_root = Path(__file__).resolve().parents[1]
         self.assertIn('class="prompt-flow-illustration"', index_html)
         self.assertIn('src="/prompt-flow.svg"', index_html)
-        styles_css = (project_root / "styles.css").read_text(encoding="utf-8")
+        styles_css = (project_root / "frontend" / "styles.css").read_text(encoding="utf-8")
         self.assertIn(".prompt-flow-illustration img", styles_css)
         self.assertIn("max-width:100%", styles_css)
         self.assertIn("把草稿变成可发送的提示词", index_html)
         self.assertIn("输入左侧草稿，Sidecar 会结合当前会话上下文进行理解和润色。", index_html)
-        self.assertTrue((project_root / "prompt-flow.svg").is_file())
+        self.assertTrue((project_root / "frontend" / "prompt-flow.svg").is_file())
 
     def test_frontend_result_panels_can_switch(self) -> None:
         project_root = Path(__file__).resolve().parents[1]
-        index_html = (project_root / "index.html").read_text(encoding="utf-8")
-        app_js = (project_root / "app.js").read_text(encoding="utf-8")
+        index_html = (project_root / "frontend" / "index.html").read_text(encoding="utf-8")
+        app_js = (project_root / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertIn('id="analysis-panel"', index_html)
         self.assertIn('id="decision-panel"', index_html)
         self.assertIn('id="analysis-panel-tab"', index_html)
@@ -354,8 +405,8 @@ class PromptSidecarTests(unittest.TestCase):
 
     def test_frontend_declares_brand_favicon(self) -> None:
         project_root = Path(__file__).resolve().parents[1]
-        index_html = (project_root / "index.html").read_text(encoding="utf-8")
-        favicon = project_root / "favicon.svg"
+        index_html = (project_root / "frontend" / "index.html").read_text(encoding="utf-8")
+        favicon = project_root / "frontend" / "favicon.svg"
         self.assertIn('<link rel="icon" href="/favicon.svg" type="image/svg+xml">', index_html)
         self.assertTrue(favicon.is_file())
         self.assertIn("Prompt Sidecar", favicon.read_text(encoding="utf-8"))
@@ -370,27 +421,6 @@ class PromptSidecarTests(unittest.TestCase):
             server.normalize_output_structure([]),
             ["结论", "变更", "验证", "限制", "下一步"],
         )
-
-    def test_handoff_packet_is_validated_and_conflicts_are_explicit(self) -> None:
-        packet = server.validate_handoff_packet(
-            {
-                "source": "agentxray",
-                "attention_id": "att-1",
-                "objective": "完成筛选验证",
-                "current_state": "逻辑已实现",
-                "completed": ["实现筛选逻辑"],
-                "session_refs": ["other-session"],
-                "confidence": "high",
-            }
-        )
-        self.assertEqual(packet["source"], "agentxray")
-        self.assertEqual(packet["completed"], ["实现筛选逻辑"])
-        self.assertEqual(
-            server.continuation_conflicts(packet, "codex", "current-session"),
-            ["handoff packet 的 session_refs 与当前绑定 session 不一致。"],
-        )
-        with self.assertRaisesRegex(ValueError, "agentxray"):
-            server.validate_handoff_packet({"source": "other"})
 
     def test_next_step_reports_insufficient_context_without_guessing(self) -> None:
         result = server.generate_next_step(
@@ -498,8 +528,8 @@ class PromptSidecarTests(unittest.TestCase):
         self.assertIn("运行最终构建", result["final_prompt"])
 
     def test_frontend_output_rule_fields(self) -> None:
-        app_js = (Path(__file__).resolve().parents[1] / "app.js").read_text(encoding="utf-8")
-        index_html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        app_js = (Path(__file__).resolve().parents[1] / "frontend" / "app.js").read_text(encoding="utf-8")
+        index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
         self.assertIn('output_style: state.outputStyle', app_js)
         self.assertIn('output_structure: state.outputStructure', app_js)
         self.assertIn('id="output-style"', index_html)
@@ -834,8 +864,8 @@ class SidecarConfigTests(unittest.TestCase):
 
 class FrontendBridgeContractTests(unittest.TestCase):
     def test_frontend_persists_and_displays_effective_send_model(self) -> None:
-        app_js = (Path(__file__).resolve().parents[1] / "app.js").read_text(encoding="utf-8")
-        index_html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        app_js = (Path(__file__).resolve().parents[1] / "frontend" / "app.js").read_text(encoding="utf-8")
+        index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="send-effective-model"', index_html)
         self.assertIn("effectiveModel", app_js)
         self.assertIn("data.effective_model", app_js)
@@ -844,19 +874,19 @@ class FrontendBridgeContractTests(unittest.TestCase):
         self.assertIn("effectiveModelLabel", app_js)
 
     def test_frontend_session_modal_and_source_aware_send(self) -> None:
-        app_js = (Path(__file__).resolve().parents[1] / "app.js").read_text(encoding="utf-8")
-        index_html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        app_js = (Path(__file__).resolve().parents[1] / "frontend" / "app.js").read_text(encoding="utf-8")
+        index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="open-session-modal"', index_html)
         self.assertIn('id="session-modal"', index_html)
         self.assertIn('id="session-filter"', index_html)
         self.assertIn('id="send-mode-group"', index_html)
         self.assertIn('source: state.source', app_js)
-        self.assertIn('mode: state.sendMode', app_js)
+        self.assertIn('mode: requestMode', app_js)
         self.assertIn('fetchJson("/api/sessions")', app_js)
         self.assertIn('function renderSendModes()', app_js)
 
     def test_frontend_session_refresh_is_in_modal_header(self) -> None:
-        index_html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
         modal_start = index_html.index('<div id="session-modal"')
         modal_html = index_html[modal_start:]
         header_start = modal_html.index('<div class="modal-head">')
@@ -872,7 +902,7 @@ class FrontendBridgeContractTests(unittest.TestCase):
         self.assertNotIn('id="modal-refresh"', index_html)
 
     def test_frontend_loads_sessions_incrementally_with_canonical_state(self) -> None:
-        app_js = (Path(__file__).resolve().parents[1] / "app.js").read_text(encoding="utf-8")
+        app_js = (Path(__file__).resolve().parents[1] / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertNotIn('state.session_id', app_js)
         self.assertIn("contextLoadGeneration", app_js)
         self.assertIn('url.searchParams.set("session_id", state.sessionId)', app_js)
@@ -882,16 +912,16 @@ class FrontendBridgeContractTests(unittest.TestCase):
         self.assertIn('["", "undefined", "null"].includes(normalized)', app_js)
 
     def test_frontend_no_dsh_bridge_label(self) -> None:
-        index_html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
-        app_js = (Path(__file__).resolve().parents[1] / "app.js").read_text(encoding="utf-8")
+        index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
+        app_js = (Path(__file__).resolve().parents[1] / "frontend" / "app.js").read_text(encoding="utf-8")
         self.assertNotIn("dsh-bridge-label", index_html)
         self.assertNotIn("dsh-bridge-label", app_js)
         self.assertNotIn("DSH 桥已连接", index_html)
         self.assertNotIn("DSH 桥已连接", app_js)
 
     def test_frontend_separate_settings_and_grouped_sessions(self) -> None:
-        app_js = (Path(__file__).resolve().parents[1] / "app.js").read_text(encoding="utf-8")
-        index_html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+        app_js = (Path(__file__).resolve().parents[1] / "frontend" / "app.js").read_text(encoding="utf-8")
+        index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="open-settings-modal"', index_html)
         self.assertIn('id="settings-modal"', index_html)
         self.assertIn('id="settings-save"', index_html)
@@ -1046,10 +1076,11 @@ class SidecarConfigEndpointTests(unittest.TestCase):
 
     def test_public_bridge_configs_do_not_run_health_probes(self) -> None:
         config = {"bridges": {"codex": {"enabled": True, "adapter": "codex", "home": "/tmp/codex"}}}
-        with patch("server.load_sidecar_config", return_value=config):
+        with patch("server._read_sidecar_config", return_value=config):
             with patch("server.bridge_statuses", side_effect=AssertionError("health probe called")):
                 entries = server.public_bridge_configs()
         self.assertEqual(entries["codex"]["adapter"], "codex")
+        self.assertEqual(entries["codex"]["home"], "/tmp/codex")
         self.assertNotIn("health", entries["codex"])
         self.assertNotIn("capabilities", entries["codex"])
 

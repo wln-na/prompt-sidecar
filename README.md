@@ -10,73 +10,204 @@
 - 单独调用本地 OpenAI-compatible 模型代理
 - 支持快速、结构化、Agent、系统提示词四种模式
 - 支持恢复原文和复制结果
-- 不向主会话写入任何消息
+- 润色过程不写入主会话；用户确认后可通过支持发送的桥接投递结果
 
 ### 任务继续 / 下一步
 
-点击“下一步 / 继续任务”后，Sidecar 会读取当前绑定 session 的上下文，结合最近消息、工具调用和验证结果，生成一份继续任务建议。建议会分别列出当前目标、已完成内容和证据、未完成事项、阻塞、主要下一步、最多两个备选方案、范围外建议以及完成条件。
+点击“下一步 / 继续任务”后，Sidecar 会读取当前绑定会话的上下文，结合最近消息、
+工具调用和验证结果，生成继续任务建议。建议会列出目标、已完成内容及证据、未完成事项、
+阻塞、主要下一步、最多两个备选方案、范围外建议和完成条件。
 
-如果上下文不足，结果会列出缺少的信息，不会猜测用户真正想做什么。任务等待用户决定时，结果会优先生成澄清问题。可选的 AgentXRay handoff packet 可以粘贴到调试入口；它与当前 session 的 `session_refs` 冲突时，Sidecar 会提示冲突并要求用户确认。
+上下文不足时，结果会列出缺少的信息；任务等待用户决定时，优先生成澄清问题。
 
-生成的 task prompt 会放入可编辑的结果框，包含目标、当前状态、本轮范围、完成条件、验证方式、限制、未解决问题和期望 Agent 返回的结果。用户确认后，仍通过现有 bridge 的 queue / steer 方式发送；Sidecar 不会自动发送，也不保存跨 session 的任务状态。
+生成的 task prompt 会放入可编辑的结果框，包含目标、当前状态、本轮范围、完成条件、
+验证方式、限制、未解决问题和期望 Agent 返回的结果。用户确认后，可按目标 bridge
+支持的 queue / steer 方式发送；Sidecar 不会自动发送，也不保存跨会话的任务状态。
 
-服务端接口为 `POST /api/next-step`，输入使用显式的 `source`、`session_id`、可选 `context` 和 `handoff_packet`。handoff packet 的稳定字段为：
+润色使用 `POST /api/polish`，任务继续使用 `POST /api/next-step`，
+确认后的发送使用 `POST /api/send`。读取上下文和发送都以显式绑定的
+`source`、`session_id` 为目标。
 
-```json
-{
-    "source": "agentxray",
-    "attention_id": "...",
-    "title": "...",
-    "reason": "...",
-    "status": "...",
-    "objective": "...",
-    "current_state": "...",
-    "completed": [],
-    "pending": [],
-    "blockers": [],
-    "recommended_action": "...",
-    "acceptance_criteria": [],
-    "session_refs": [],
-    "confidence": "high"
-}
+## 项目目录
+
+```text
+prompt-sidecar/
+├── backend/
+│   ├── server.py                 # HTTP 服务、润色与任务继续 API
+│   └── bridges/
+│       ├── __init__.py
+│       ├── contracts.py          # 桥接契约
+│       └── registry.py           # Bridge Registry
+├── frontend/
+│   ├── index.html                # 页面入口
+│   ├── app.js                    # 页面交互
+│   ├── styles.css
+│   ├── favicon.svg
+│   └── prompt-flow.svg
+├── config/
+│   ├── sidecar.config.example.json
+│   ├── sidecar.config.json        # 首次启动生成的本机配置，Git 忽略
+│   └── launch-agent.plist.template
+├── scripts/
+│   ├── start.sh                  # macOS LaunchAgent 启动
+│   ├── stop.sh                   # macOS LaunchAgent 停止
+│   ├── generate_launch_agent.py   # 生成本机 plist
+│   ├── check.sh                  # 完整本地检查
+│   ├── secret-scan.sh
+│   └── prompt_sidecar_mcp.py      # 只读 stdio MCP 服务
+├── requirements/
+│   └── test.txt
+├── tests/
+├── dsh-plugin/prompt-sidecar-bridge/
+├── .gitignore
+└── README.md
 ```
+
+服务入口、页面资源、配置和脚本分别放在上述目录中。`config/sidecar.config.json`
+保存本机桥接配置；已有文件会保留，新克隆首次启动时才从示例生成。
 
 ## 启动
 
+运行服务需要 Python 3.11+。完整测试还需要 Node.js（包含 `node:test`）和 Bash；
+推送前扫描需要 `gitleaks`。前端使用原生 JavaScript，无需 npm 安装或构建。
+OpenClaw 桥额外需要提供 `websockets.sync` 的 `websockets` 包。
+
+新克隆后，在项目根目录运行以下命令以前台方式启动：
+
 ```bash
-python3 server.py
+python3 backend/server.py
 ```
 
 打开：`http://127.0.0.1:8765`
 
+### HTTPS Agent 侧边栏
+
+面向普通用户的产品形态是“HTTPS 面板 + 本机连接器”。Agent 客户端的侧边栏可以打开
+部署后的 `https://app.promptsidecar.com`；网页面板通过本机连接器读取历史会话和调用本地
+桥接。网页本身不能直接访问用户电脑中的 Agent 文件，因此用户仍需先安装并启动本机
+Prompt Sidecar 服务。
+
+如果面板和连接器使用不同端口，可以通过 `api` 查询参数指定本机 API，例如：
+
+```text
+https://app.promptsidecar.com/?api=http%3A%2F%2F127.0.0.1%3A9876
+```
+
+`api` 只接受 HTTP(S) loopback 地址；未指定时，本机页面使用当前来源，远程 HTTPS 面板
+默认尝试 `http://127.0.0.1:8765`。面板启动时先请求 `/api/bootstrap`，确认本机连接器
+在线后再读取桥接和会话。
+
+本机连接器默认允许示例产品来源 `https://app.promptsidecar.com`。自部署面板需要在
+`config/sidecar.config.json` 的 `panel.allowed_origins` 中加入完整来源，或设置环境变量：
+
+```bash
+PROMPT_SIDECAR_ALLOWED_ORIGINS=https://sidecar.example.com \
+    python3 backend/server.py
+```
+
+来源必须是完整的 `http` 或 `https` origin，不包含路径、查询参数或凭据。连接器只监听
+loopback；允许的 HTTPS 来源只能访问本机连接器，历史会话不会因为打开面板而自动上传到
+Prompt Sidecar 服务端。
+
+#### GitHub Pages 部署
+
+仓库提供 `.github/workflows/deploy-pages.yml`，会把 `frontend/` 发布为 GitHub Pages
+静态站点。工作流运行成功后，在仓库 Settings → Pages 中确认 Source 使用 GitHub
+Actions，再在 Pages 的 Custom domain 中配置 `app.promptsidecar.com`。仅提交 `CNAME`
+文件不会自动完成自定义域名配置。
+
+域名服务商需要添加以下记录之一：
+
+```text
+app  CNAME  wln-na.github.io
+```
+
+DNS 生效后再开启 Enforce HTTPS，并用下面的命令验证：
+
+```bash
+dig +short app.promptsidecar.com CNAME
+curl -I https://app.promptsidecar.com/
+```
+
+公网面板部署和本机连接器是两件事。更新 `frontend/` 后需要重新运行 GitHub Actions；
+更新 `backend/server.py` 后需要重启每台用户电脑上的本机连接器。
+
+以上及后续命令均从项目根目录执行。前台自定义端口使用
+`python3 backend/server.py --port 9876`；macOS 常驻服务使用
+`PORT=9876 ./scripts/start.sh`。DSH 插件默认端口为 `8766`，独立于面板服务端口。
+
 > DSH 桥的会话日志解析依赖 Python 3.14+ 标准库 `compression.zstd`
 > （或 pip 安装 `zstandard`）。DSH 不可用时不影响 Codex 桥。
 
+### 首次配置润色模型
+
+润色服务读取 `$CODEX_HOME/config.toml`，未设置 `CODEX_HOME` 时读取
+`~/.codex/config.toml`。复用其中的 `model`、`model_provider`、对应 provider 的
+`base_url` 和 `env_key`；调用的是该 endpoint 的 `/responses` 接口。
+请先确认所选模型和代理支持此接口。没有配置时会使用代码中的默认模型和
+OpenAI endpoint，不代表已有可用凭据。
+
+认证优先读取 provider 的 `experimental_bearer_token`，再读取 `env_key`
+指定的环境变量；OpenAI endpoint 还支持 `OPENAI_API_KEY`。推荐使用已有的
+环境变量凭据，勿将凭据写入仓库配置、示例、截图或日志。
+设置好模型配置和凭据后，在同一终端运行 `python3 backend/server.py`，
+先确认能完成一次润色。桥接配置 `config/sidecar.config.json` 与这份润色模型配置用途不同。
+
+服务用于本机单用户场景。GET 和 POST 都校验本机来源及浏览器同源请求，
+静态服务仅暴露 `frontend/` 中的页面资源。
+公开源代码不等于部署公网服务；当前没有多用户身份认证或公网部署流程。
+
 ## 启停
+
+新克隆后，macOS 可在项目根目录运行 `./scripts/start.sh` 启动常驻服务。
+以下脚本仅适用于 macOS，且要求本机已安装 Codex CLI。其他环境使用上面的前台启动命令；
+各 Agent 桥是否可用还取决于本机程序和数据格式。
 
 启动脚本会动态生成并加载通用标签 `com.prompt-sidecar.agent` 的用户级
 LaunchAgent，面板服务会常驻；日志写入 `~/Library/Logs/PromptSidecar/`，
 仅为当前用户可读。
+若该服务曾被系统禁用，`scripts/start.sh` 会先重新启用它，再加载服务，无需 `sudo`。
 
 ```bash
-./start.sh
-./stop.sh
+./scripts/start.sh
+./scripts/stop.sh
 ```
+
+LaunchAgent 会记录启动时的 `CODEX_HOME` 路径覆盖值，但不会复制 shell 中的凭据环境变量。
+如果模型或桥接依赖这类变量，先使用同一终端的前台启动方式；仅在终端 `export`
+后运行 `scripts/start.sh` 不会让常驻服务自动获得凭据。
+更换路径配置后，需要先停止再启动服务以重新生成 plist。
 
 ## 测试
 
+完整测试包含 DSH 压缩日志夹具。Python 3.11–3.13 必须安装 `zstandard`，
+即使运行时没有启用 DSH；Python 3.14+ 使用标准库实现。
+
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements/test.txt
 ```
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
+```
+
+完整本地发布前检查（Python/JavaScript 回归、语法、diff 和工作区/历史 secret 扫描）：
+
+```bash
+PYTHON_BIN=.venv/bin/python bash scripts/check.sh
+```
+
+当前没有仓库级 formatter、linter 或 CI 流水线配置；本地通过不能替代目标仓库的审查要求。
 
 ## Bridge Registry
 
-公开示例保存在 `sidecar.config.example.json`；首次启动会复制为已忽略的
-`sidecar.config.json`。`bridges` 是按来源 ID 索引的注册表，每个条目绑定
+公开示例保存在 `config/sidecar.config.example.json`；首次启动会复制为已忽略的
+`config/sidecar.config.json`。`bridges` 是按来源 ID 索引的注册表，每个条目绑定
 一个 adapter：
 
-桥接契约位于 `bridges/contracts.py`，adapter 注册位于
-`bridges/registry.py`。`/api/config` 只返回配置，`/api/health` 独立执行运行时
+桥接契约位于 `backend/bridges/contracts.py`，adapter 注册位于
+`backend/bridges/registry.py`。`/api/config` 只返回配置，`/api/health` 独立执行运行时
 探测，避免打开设置页时重复触发远程健康检查。
 
 ```json
@@ -111,6 +242,11 @@ adapter 可以附加自己的路径字段。公开示例保留 Codex 的 `home`�
 兼容需要的 `home`、`sessions_dir`、`workspace_storage`、`bridge_url` 和
 `token_file`。这些字段只放路径或地址，不放密钥。
 
+DSH、Claude、WorkBuddy Local 和 Gemini 未明确配置的子路径会随 `home` 推导。
+已经写入文件的子路径（包括复制示例时写入的值）按显式配置保留；更换 `home`
+并希望自动派生时，需同时清空或删除这些子路径字段。保存不会再固化未配置的派生路径。
+设置页中的子路径留空表示跟随主目录；清空已有子路径并保存可恢复这一行为。
+
 ## capabilities 与 health
 
 `capabilities` 是运行时由 adapter 返回的能力声明，不写入配置文件：
@@ -118,6 +254,7 @@ adapter 可以附加自己的路径字段。公开示例保留 Codex 的 `home`�
 - `list_sessions`：列出可选会话
 - `read_context`：读取指定会话上下文
 - `send`：向指定会话发送结果
+
 `/api/config` 只返回持久化配置，不触发运行时探测；`/api/health` 返回已启用桥的
 `capabilities` 和 `health`。设置页并行读取两者并合并展示，因此打开设置不会因
 配置读取而重复触发远程健康检查。
@@ -157,7 +294,7 @@ API 响应和仓库文件都不保存该值。
 - 不把凭据值拼进 `endpoint`、URL 查询参数或发送内容
 - DSH 的 `token_file` 仅保存文件路径；token 由本地插件生成，并已被
   `.gitignore` 排除
-- `sidecar.config.json` 是本机配置，不应提交
+- `config/sidecar.config.json` 是本机配置，不应提交
 
 ## 超时、重试与鉴权错误
 
@@ -168,7 +305,7 @@ API 响应和仓库文件都不保存该值。
 
 ## 内置兼容与可选桥
 
-示例配置包含十一个已注册来源。`claude` 默认启用但只读；`workbuddy_local`
+示例配置包含十一个已注册来源。`claude` 默认启用且允许显式发送；`workbuddy_local`
 直接读取本机 WorkBuddy 数据库和 transcript，不需要云端 token；
 `openclaw` 和 `openhands` 默认禁用，配置 endpoint 与鉴权后再启用。条目存在
 不代表外部程序已经就绪，实际状态以运行时 health 为准。
@@ -216,6 +353,9 @@ API 响应和仓库文件都不保存该值。
 - `script` 留空时自动查找 macOS WorkBuddy.app 内置 CLI，也可在设置中指定路径
 - `surface: "cloud_task"` 的 Open API/ACP adapter 仍保留为可选扩展，但默认配置
   不要求也不启用它
+- 云端 ACP 的 `acp_cwd` 是远端主机的工作目录，兼容默认值为 `/workspace`；
+  若远端使用其他目录，请在该 bridge 配置中明确设置。它不表示本机仓库位置，
+  也不能据此判断远端目录实际存在。
 
 ### OpenClaw
 
@@ -271,6 +411,8 @@ API 响应和仓库文件都不保存该值。
 - 提供 `scripts/prompt_sidecar_mcp.py`：仅暴露 `prompt_sidecar_health`、
   `prompt_sidecar_sessions`、`prompt_sidecar_context` 三个只读 MCP 工具
 - 在豆包工作中把该脚本作为 stdio MCP server 启动；它只读取本地 Sidecar HTTP API
+- 自定义服务端口时，在 MCP 进程环境中设置 `PROMPT_SIDECAR_URL`，例如
+  `http://127.0.0.1:9876`；默认地址为 `http://127.0.0.1:8765`，仅允许本机地址。
 
 ## 会话绑定
 
@@ -302,7 +444,7 @@ DSH、Claude 和 WorkBuddy Local 没有可靠的“当前活动会话”自动�
 
 - Codex：`codex queue`，追加一个新的 queue turn。
 - DSH：插件 prompt API；默认“排队”，可选“插入”（打断当前轮）。
-- Claude：示例中为只读，不提供发送。
+- Claude：示例允许通过 CLI `--resume` 排队发送；配置为只读时不可发送。
 - WorkBuddy Local：调用本机 CLI `--resume`，不需要云端 token。
 - OpenClaw：支持 `queue` 和 `steer`，使用 Gateway `chat.send.queueMode`。
 - OpenHands：支持 `queue`，通过 `run: true` 触发会话执行。
@@ -327,29 +469,24 @@ DSH、Claude 和 WorkBuddy Local 没有可靠的“当前活动会话”自动�
 
 - HTTP 访问日志只记录 method、无查询参数的路径、状态码和响应大小；
   `session_id` 等查询参数不会写入日志。
-- `sidecar.config.json`、LaunchAgent plist、日志、PID、Python 缓存和 token
+- `config/sidecar.config.json`、LaunchAgent plist、日志、PID、Python 缓存和 token
   文件均不应提交 Git。
 - 公开示例只使用 `~`、环境变量名和公开 endpoint，不写真实凭据、用户名或
   本机绝对路径。
-- 运行 `./start.sh` 时会从 `launch-agent.plist.template` 生成本机 plist，
-  其中路径不会进入公开模板。
+- 运行 `./scripts/start.sh` 时，`scripts/generate_launch_agent.py` 会从
+  `config/launch-agent.plist.template` 生成本机 plist，其中路径不会进入公开模板。
 
 ## 首次 push 检查
 
 仓库使用 `.githooks/pre-push`：
 
+新克隆需要显式启用钩子（此 Git 配置不会随 clone 自动生效）：
+
+```bash
+git config --local core.hooksPath .githooks
+```
+
 - 推送前扫描当前工作区与全部本地 Git 历史；发现疑似 secret 时阻止 push。
-- 目标 remote 已存在分支时阻止首次 push，要求先单独检查其旧提交。
+- 每次推送都会检查目标 remote；已有分支时阻止 push，要求先单独检查其旧提交。
 - 工具依赖：`gitleaks`；人工核查后确需覆盖时设置
   `PROMPT_SIDECAR_ALLOW_REMOTE_HISTORY=1`。
-
-### AgentXRay 集成模式
-
-Sidecar 继续支持独立模式；AgentXRay 集成模式只接受由 AgentXRay 导入的短期 handoff。Sidecar 保留原始用户需求和锁定目标，用户确认最终编辑文本后通过 AgentXRay 的 send endpoint 请求投递。Sidecar 不直接选择其他会话，也不把 `X-AgentXRay-Integration-Key` 暴露给浏览器。
-
-AgentXRay 负责协调目标校验、共享 token 和阶段推进；Sidecar 负责本地 loopback 请求校验、handoff 来源绑定以及调用既有 bridge 的显式 session 发送。`queued` 回执只表示 bridge 接受发送，不能据此推断 AgentXRay 已进入 `advanced`。
-## AgentXRay integration mode
-
-Prompt Sidecar keeps its standalone session workflow and also supports a short-lived `agentxray` handoff. AgentXRay supplies the locked platform, session ID, working directory, context version, evidence, and user request. Sidecar may polish that request, but its “send to current session” action requires explicit confirmation of the final text and a stable idempotency key.
-
-In integration mode Sidecar binds the handoff to the loopback AgentXRay origin used during import. It sends the confirmed text back to AgentXRay, and AgentXRay validates the target again before calling the mapped bridge adapter. Sidecar’s authenticated `/api/agentxray/deliver` endpoint is the only bridge dispatch entry for this path; it does not accept browser-originated cross-machine calls and it never reports a later agent response as completed. A private `0600` token file is shared through `AXR_SIDECAR_TOKEN_FILE` or `~/.agentxray/sidecar-integration.token`; the token is never put in a URL or returned by the API.

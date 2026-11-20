@@ -5,7 +5,10 @@
  */
 import { createServer } from 'node:http'
 import { randomUUID, randomBytes } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+    closeSync, constants, fchmodSync, fstatSync, ftruncateSync,
+    mkdirSync, openSync, readFileSync, writeSync,
+} from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -21,16 +24,20 @@ function expandHome(value) {
 
 function ensureToken(tokenFile) {
     const target = resolve(expandHome(tokenFile))
-    try {
-        const existing = readFileSync(target, 'utf8').trim()
-        if (existing) return { token: existing, path: target }
-    } catch {
-        // fall through and mint a new token
-    }
-    const token = randomBytes(32).toString('hex')
     mkdirSync(dirname(target), { recursive: true })
-    writeFileSync(target, `${token}\n`, { mode: 0o600 })
-    return { token, path: target }
+    const fd = openSync(target, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW, 0o600)
+    try {
+        if (!fstatSync(fd).isFile()) throw new Error('Token must be a regular file')
+        fchmodSync(fd, 0o600)
+        const existing = readFileSync(fd, 'utf8').trim()
+        if (existing) return { token: existing, path: target }
+        const token = randomBytes(32).toString('hex')
+        ftruncateSync(fd, 0)
+        writeSync(fd, `${token}\n`, 0, 'utf8')
+        return { token, path: target }
+    } finally {
+        closeSync(fd)
+    }
 }
 
 function readBody(req, limit = MAX_BODY_BYTES) {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import plistlib
 import subprocess
 import sys
@@ -9,6 +10,72 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+class LaunchAgentStartupTests(unittest.TestCase):
+    def run_start(
+        self, *, enable_fails: bool = False
+    ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+        """Run the actual script with launchd disabled, without touching user services/files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            commands = {
+                "launchctl": '''#!/bin/bash
+echo "$*" >> "$START_TEST_DIR/calls"
+case "$1" in
+    print|bootout) exit 1 ;;
+    enable)
+        if [ "$START_TEST_ENABLE_FAILS" = 1 ]; then exit 1; fi
+        /usr/bin/touch "$START_TEST_DIR/enabled" ;;
+    bootstrap)
+        if [ ! -f "$START_TEST_DIR/enabled" ]; then
+            echo "Bootstrap failed: 5: Input/output error" >&2
+            exit 5
+        fi
+        /usr/bin/touch "$START_TEST_DIR/running" ;;
+    *) exit 2 ;;
+esac
+''',
+                "curl": '#!/bin/bash\n[ -f "$START_TEST_DIR/running" ]\n',
+                "mkdir": "#!/bin/bash\nexit 0\n",
+                "touch": "#!/bin/bash\nexit 0\n",
+                "chmod": "#!/bin/bash\nexit 0\n",
+            }
+            for name, source in commands.items():
+                command = temp / name
+                command.write_text(source, encoding="utf-8")
+                command.chmod(0o755)
+            result = subprocess.run(
+                ["/bin/bash", str(ROOT / "scripts" / "start.sh")],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                env={
+                    **os.environ,
+                    "PATH": f"{temp}:/usr/bin:/bin",
+                    "PYTHON_BIN": "/usr/bin/true",
+                    "CODEX_BIN": "/usr/bin/true",
+                    "START_TEST_DIR": str(temp),
+                    "START_TEST_ENABLE_FAILS": "1" if enable_fails else "0",
+                },
+            )
+            return result, (temp / "calls").read_text(encoding="utf-8").splitlines()
+
+    def test_start_enables_disabled_service_before_bootstrap(self) -> None:
+        result, calls = self.run_start()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        target = f"gui/{os.getuid()}/com.prompt-sidecar.agent"
+        enable_index = calls.index(f"enable {target}")
+        bootstrap_index = next(i for i, call in enumerate(calls) if call.startswith("bootstrap "))
+        self.assertLess(enable_index, bootstrap_index)
+        self.assertIn("Prompt Sidecar started:", result.stdout)
+
+    def test_enable_failure_does_not_bootstrap_or_report_success(self) -> None:
+        result, calls = self.run_start(enable_fails=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(any(call.startswith("enable ") for call in calls))
+        self.assertFalse(any(call.startswith("bootstrap ") for call in calls))
+        self.assertNotIn("Prompt Sidecar started:", result.stdout)
 
 
 class LaunchAgentGeneratorTests(unittest.TestCase):
@@ -30,7 +97,7 @@ class LaunchAgentGeneratorTests(unittest.TestCase):
                     sys.executable,
                     str(ROOT / "scripts" / "generate_launch_agent.py"),
                     "--template",
-                    str(ROOT / "launch-agent.plist.template"),
+                    str(ROOT / "config" / "launch-agent.plist.template"),
                     "--output",
                     str(output),
                     "--label",
@@ -55,7 +122,7 @@ class LaunchAgentGeneratorTests(unittest.TestCase):
             self.assertEqual(plist["ProgramArguments"][0], str(python_bin.resolve()))
             self.assertEqual(
                 plist["ProgramArguments"][1],
-                str((ROOT / "server.py").resolve()),
+                str((ROOT / "backend" / "server.py").resolve()),
             )
             self.assertEqual(plist["WorkingDirectory"], str(ROOT.resolve()))
             self.assertTrue(plist["StandardOutPath"].endswith("prompt-sidecar.log"))

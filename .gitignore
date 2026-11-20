@@ -1,4 +1,5 @@
 __pycache__/
+.venv/
 *.py[cod]
 .pytest_cache/
 .server.pid
@@ -9,3 +10,8 @@ launch-agent.plist
 .env.*
 *.token
 .DS_Store
+
+# Local research, design, planning, and audit material; omit from clean snapshots.
+/docs/
+/public/prototypes/
+/memory/

@@ -1,0 +1,2 @@
+# DSH fixtures use compression.zstd on Python 3.14+, otherwise this package.
+zstandard==0.25.0; python_version < "3.14"

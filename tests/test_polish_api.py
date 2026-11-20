@@ -4,34 +4,14 @@ import json
 import sys
 import threading
 import unittest
-from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 import server
-
-
-def make_handoff() -> dict:
-    return {
-        "handoff_id": "polish-intervention",
-        "attention_id": "polish-attention",
-        "source": "agentxray",
-        "target": {
-            "platform": "codex",
-            "session_id": "session-one",
-            "agent": None,
-            "cwd": "/project",
-            "title": "Polish target",
-        },
-        "target_fingerprint": "fingerprint",
-        "snapshot_version": "snapshot",
-        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(),
-        "session_refs": [],
-    }
 
 
 class PolishApiTests(unittest.TestCase):
@@ -78,12 +58,31 @@ class PolishApiTests(unittest.TestCase):
         self.assertEqual(result["status"], 200)
         self.assertEqual(result["request_id"], "request-123")
         self.assertEqual(result["correlation_id"], "correlation-456")
-        self.assertEqual(result["integration_mode"], "standalone")
+        self.assertEqual(result["mode"], "quick")
         self.assertTrue(result["context_used"])
         self.assertEqual(result["context_chars"], len("supplied context"))
         self.assertTrue(result["used_context"])
         self.assertEqual(result["polished"], "polished")
         self.assertIn("supplied context", call_model.call_args.args[0])
+
+    def test_agent_mode_sends_codex_execution_contract_to_polisher(self) -> None:
+        with patch("server.call_model", return_value="codex task prompt") as call_model:
+            result = self.post(
+                {
+                    "draft": "完成当前事项",
+                    "mode": "agent",
+                    "supplied_context": "当前项目上下文",
+                }
+            )
+
+        self.assertEqual(result["status"], 200)
+        self.assertIn("Codex 执行协议：", result["polished"])
+        prompt = call_model.call_args.args[0]
+        for phrase in ("Planner", "Agent Team", "Subagent", "多会话通信", "完成条件"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, prompt)
+        self.assertNotIn("如果支持多 Agent", prompt)
+        self.assertNotIn("否则单 Agent", prompt)
 
     def test_standalone_without_context_can_return_stable_ids_from_headers(self) -> None:
         with patch("server.call_model", return_value="polished"):
@@ -96,7 +95,7 @@ class PolishApiTests(unittest.TestCase):
         self.assertEqual(result["status"], 200)
         self.assertEqual(result["request_id"], "header-request")
         self.assertEqual(result["correlation_id"], "header-correlation")
-        self.assertEqual(result["integration_mode"], "standalone")
+        self.assertEqual(result["mode"], "quick")
         self.assertFalse(result["context_used"])
         self.assertEqual(result["context_chars"], 0)
 
@@ -123,40 +122,16 @@ class PolishApiTests(unittest.TestCase):
             {
                 "request_id": "invalid-request",
                 "correlation_id": "invalid-correlation",
-                "integration_mode": "standalone",
             }
         )
 
         self.assertEqual(result["status"], 400)
         self.assertEqual(result["request_id"], "invalid-request")
         self.assertEqual(result["correlation_id"], "invalid-correlation")
-        self.assertEqual(result["integration_mode"], "standalone")
-
-    def test_agentxray_handoff_keeps_existing_mode_and_context_contract(self) -> None:
-        handoff = make_handoff()
-        server._IMPORTED_HANDOFFS[handoff["handoff_id"]] = (
-            "http://127.0.0.1:4921",
-            handoff,
+        self.assertEqual(
+            set(result), {"status", "ok", "error", "request_id", "correlation_id"},
         )
-        self.addCleanup(server._IMPORTED_HANDOFFS.clear)
-        with patch("server.call_model", return_value="polished"):
-            result = self.post(
-                {
-                    "draft": "原始提示词",
-                    "integration_mode": "agentxray",
-                    "handoff": handoff,
-                    "request_id": "agentxray-request",
-                }
-            )
 
-        self.assertEqual(result["status"], 200)
-        self.assertEqual(result["request_id"], "agentxray-request")
-        self.assertEqual(result["correlation_id"], "agentxray-request")
-        self.assertEqual(result["integration_mode"], "agentxray")
-        self.assertTrue(result["context_used"])
-        self.assertGreater(result["context_chars"], 0)
-        self.assertEqual(result["source"], "codex")
-        self.assertEqual(result["session_id"], "session-one")
 
 
 if __name__ == "__main__":

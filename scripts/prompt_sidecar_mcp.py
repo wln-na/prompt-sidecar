@@ -7,11 +7,13 @@ health, session discovery, and context reads over the MCP stdio transport.
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import os
 import sys
 from typing import Any
-from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.parse import urlencode, urlsplit, urlunsplit
+from urllib.request import HTTPRedirectHandler, ProxyHandler, build_opener
 
 
 SIDECAR_URL = "http://127.0.0.1:8765"
@@ -47,9 +49,48 @@ TOOLS = [
 ]
 
 
+def sidecar_endpoint() -> str:
+    """Use PROMPT_SIDECAR_URL only for a credential-free loopback HTTP(S) origin."""
+    value = os.environ.get("PROMPT_SIDECAR_URL", SIDECAR_URL)
+    try:
+        if any(character.isspace() or ord(character) < 32 for character in value):
+            raise ValueError("invalid characters")
+        parsed = urlsplit(value)
+        host = parsed.hostname
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not host
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+            or parsed.netloc.endswith(":")
+            or (parsed.port is not None and not 1 <= parsed.port <= 65535)
+        ):
+            raise ValueError("invalid origin")
+        if host != "localhost" and not ipaddress.ip_address(host).is_loopback:
+            raise ValueError("non-loopback host")
+    except ValueError:
+        raise ValueError(
+            "PROMPT_SIDECAR_URL must be a loopback HTTP(S) origin without credentials, "
+            "path, query or fragment"
+        ) from None
+    return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(
+        self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str,
+    ) -> None:
+        return None
+
+
 def sidecar_json(path: str, query: dict[str, str] | None = None) -> dict[str, Any]:
+    endpoint = sidecar_endpoint()
     suffix = f"?{urlencode(query)}" if query else ""
-    with urlopen(f"{SIDECAR_URL}{path}{suffix}", timeout=30) as response:
+    opener = build_opener(ProxyHandler({}), NoRedirect())
+    with opener.open(f"{endpoint}{path}{suffix}", timeout=30) as response:
         payload = json.loads(response.read().decode("utf-8"))
     if not isinstance(payload, dict):
         raise RuntimeError("Sidecar returned a non-object response.")
