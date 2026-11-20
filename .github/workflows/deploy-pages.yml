@@ -16,7 +16,21 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
+    build:
+        permissions:
+            contents: read
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            - name: Upload panel artifact
+              uses: actions/upload-pages-artifact@v5
+              with:
+                  path: frontend
+
     deploy:
+        needs: build
         permissions:
             contents: read
             pages: write
@@ -26,18 +40,9 @@ jobs:
             url: ${{ steps.deployment.outputs.page_url }}
         runs-on: ubuntu-latest
         steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
             - name: Configure GitHub Pages
-              uses: actions/configure-pages@v5
-
-            - name: Upload panel artifact
-              uses: actions/upload-artifact@v4
-              with:
-                  name: github-pages
-                  path: frontend
+              uses: actions/configure-pages@v6
 
             - name: Deploy panel
               id: deployment
-              uses: actions/deploy-pages@v4
+              uses: actions/deploy-pages@v5
