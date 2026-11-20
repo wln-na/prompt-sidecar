@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LABEL="com.prompt-sidecar.agent"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG_DIR="$HOME/Library/Logs/PromptSidecar"
-PORT="${PORT:-8765}"
+PORT="${PORT:-9876}"
 
 find_python() {
     local candidate

@@ -16,7 +16,7 @@ from urllib.parse import urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, build_opener
 
 
-SIDECAR_URL = "http://127.0.0.1:8765"
+SIDECAR_URL = "http://127.0.0.1:9876"
 
 TOOLS = [
     {

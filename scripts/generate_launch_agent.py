@@ -87,7 +87,7 @@ def main() -> None:
     parser.add_argument("--codex-bin", required=True)
     parser.add_argument("--project-dir", type=Path, required=True)
     parser.add_argument("--log-dir", type=Path, required=True)
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=9876)
     args = parser.parse_args()
     generate_launch_agent(
         template_path=args.template.resolve(),

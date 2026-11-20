@@ -173,10 +173,21 @@
 .draft-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .draft-editor { min-height: 210px; }
 .advanced-options { margin: 14px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); padding: 10px 12px; }
-.advanced-options > summary { color: var(--ink); font-size: 11px; font-weight: 700; }
+.advanced-options > summary { display:flex; align-items:center; justify-content:space-between; gap:10px; color:var(--ink); font-size:11px; font-weight:700; }
 .advanced-options-body { padding-top: 8px; }
 .advanced-options .mode-row { margin: 4px 0 12px; }
 .advanced-options .output-rules { margin-bottom: 10px; background: var(--surface); }
+.prompt-settings-modal { width:min(820px,calc(100vw - 32px)); max-height:min(820px,calc(100vh - 32px)); overflow:auto; }
+.prompt-settings-grid { display:grid; grid-template-columns:90px minmax(0,1fr) 90px minmax(0,1fr); align-items:center; gap:8px; margin-bottom:12px; }
+.prompt-template-field { margin-top:11px; }
+.prompt-field-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; color:var(--ink); font-size:11px; font-weight:700; }
+.prompt-template-field textarea, #prompt-default-structure { width:100%; border:1px solid var(--line-strong); border-radius:10px; background:var(--surface-soft); padding:10px; color:var(--ink); font:12px/1.55 var(--sans); resize:vertical; outline:none; box-sizing:border-box; }
+.prompt-template-field textarea:focus, #prompt-default-structure:focus { border-color:rgba(49,87,213,.55); }
+.prompt-defaults { display:grid; grid-template-columns:70px repeat(3,minmax(0,1fr)); align-items:end; gap:8px; margin-top:12px; }
+.prompt-defaults label { display:flex; flex-direction:column; gap:5px; color:var(--muted); font-size:10px; }
+.prompt-defaults .bridge-selector, .prompt-defaults input { width:100%; box-sizing:border-box; }
+.prompt-preview-block { margin-top:12px; }
+.prompt-preview-block pre { max-height:150px; overflow:auto; margin:0; border:1px solid var(--line); border-radius:10px; background:var(--surface-soft); padding:10px; color:var(--muted); font:11px/1.5 var(--mono); white-space:pre-wrap; }
 .continue-button { min-height: 43px; background: var(--surface); }
 .connection-status { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
 .connection-status.empty { color: var(--muted); }
@@ -188,6 +199,7 @@
 .result-editor { min-height: 380px; }
 .result-heading-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .result-panel-switch{display:flex;align-items:center;gap:3px;border:1px solid var(--line);border-radius:999px;background:var(--surface-soft);padding:3px}
+@media(max-width:680px){.prompt-settings-grid{grid-template-columns:1fr 1fr}.prompt-defaults{grid-template-columns:1fr 1fr}.prompt-defaults .settings-picker-label{grid-column:1/-1}}
 .result-panel-tab{border:0;border-radius:999px;background:transparent;padding:6px 9px;color:var(--muted);font-size:10px;font-weight:700;cursor:pointer}
 .result-panel-tab:hover{color:var(--ink)}
 .result-panel-tab.active{background:var(--surface);color:var(--accent);box-shadow:0 2px 7px rgba(49,87,213,.1)}

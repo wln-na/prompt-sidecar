@@ -72,12 +72,28 @@ async function harness({ search = "?source=codex&session_id=session-one", contex
     const routes = new Map([
         ["GET /api/bootstrap", () => ({
             kind: "prompt-sidecar-local", version: "0.4.0", panel_mode: "hosted",
-            api_base: "http://127.0.0.1:8765", local_only: true,
+            api_base: "http://127.0.0.1:9876", local_only: true,
             capabilities: ["sessions", "context", "polish", "next_step", "send"],
         })],
         ["GET /api/config", () => ({ bridges: {
             codex: { adapter: "codex", read_only: false },
         } })],
+        ["GET /api/prompt-config", () => ({
+            builtins: {
+                modes: { quick: "快速默认", structured: "结构化默认", agent: "Agent默认", system: "系统默认" },
+                styles: { concise: "精简默认", standard: "标准默认", detailed: "详细默认" },
+                general_preferences: "", defaults: {
+                    mode: "quick", style: "concise", output_structure: ["结论", "变更"],
+                },
+            },
+            effective: {
+                modes: { quick: "快速默认", structured: "结构化默认", agent: "Agent默认", system: "系统默认" },
+                styles: { concise: "精简默认", standard: "标准默认", detailed: "详细默认" },
+                general_preferences: "", defaults: {
+                    mode: "quick", style: "concise", output_structure: ["结论", "变更"],
+                },
+            },
+        })],
         ["GET /api/health", () => ({
             model: "polish-model",
             bridges: { codex: { status: "available", capabilities: {
@@ -95,7 +111,7 @@ async function harness({ search = "?source=codex&session_id=session-one", contex
             url.searchParams.get("source") || "codex",
         ))],
     ]);
-    const location = new URL(`http://127.0.0.1:8765/${search}`);
+    const location = new URL(`http://127.0.0.1:9876/${search}`);
     const sandbox = vm.createContext({
         URL, URLSearchParams,
         document: {
@@ -144,7 +160,7 @@ async function harness({ search = "?source=codex&session_id=session-one", contex
 test("full standalone initialization keeps URL binding, capabilities and model evidence", async () => {
     const h = await harness({ search: "?mode=embedded&source=codex&session_id=session-one" });
     assert.deepEqual([...new Set(h.calls.map((call) => call.url.pathname))].sort(), [
-        "/api/bootstrap", "/api/config", "/api/context", "/api/health", "/api/sessions",
+        "/api/bootstrap", "/api/config", "/api/context", "/api/health", "/api/prompt-config", "/api/sessions",
     ]);
     const query = h.requests("/api/context")[0].url.searchParams;
     assert.deepEqual([...query], [["source", "codex"], ["session_id", "session-one"]]);
@@ -162,6 +178,21 @@ test("full standalone initialization keeps URL binding, capabilities and model e
         assert.equal(h.elements.get(selector).disabled, false);
     }
     assert.equal(h.elements.get("#send-button").disabled, true);
+});
+
+test("prompt settings load defaults, preview changes and save without changing result", async () => {
+    const h = await harness();
+    h.run('setResult("已生成结果")');
+    await h.click("#open-prompt-settings");
+    h.elements.get("#prompt-template").value = "用户自定义模式";
+    await h.elements.get("#prompt-template").dispatchEvent({type: "input"});
+    h.routes.set("POST /api/prompt-config", (_url, options) => ({
+        ...JSON.parse(options.body),
+        effective: JSON.parse(options.body),
+    }));
+    await h.click("#prompt-settings-save");
+    assert.equal(h.run("state.result"), "已生成结果");
+    assert.equal(h.requests("/api/prompt-config").filter((call) => call.method === "POST").length, 1);
 });
 
 test("hosted panel uses the loopback connector API from the URL", async () => {

@@ -78,7 +78,7 @@ OpenClaw 桥额外需要提供 `websockets.sync` 的 `websockets` 包。
 python3 backend/server.py
 ```
 
-打开：`http://127.0.0.1:8765`
+打开：`http://127.0.0.1:9876`
 
 ### HTTPS Agent 侧边栏
 
@@ -94,7 +94,7 @@ https://wln-na.github.io/prompt-sidecar/?api=http%3A%2F%2F127.0.0.1%3A9876
 ```
 
 `api` 只接受 HTTP(S) loopback 地址；未指定时，本机页面使用当前来源，远程 HTTPS 面板
-默认尝试 `http://127.0.0.1:8765`。面板启动时先请求 `/api/bootstrap`，确认本机连接器
+默认尝试 `http://127.0.0.1:9876`。面板启动时先请求 `/api/bootstrap`，确认本机连接器
 在线后再读取桥接和会话。
 
 本机连接器默认允许 GitHub Pages 和示例自定义域来源。自部署面板需要在
@@ -416,7 +416,7 @@ API 响应和仓库文件都不保存该值。
   `prompt_sidecar_sessions`、`prompt_sidecar_context` 三个只读 MCP 工具
 - 在豆包工作中把该脚本作为 stdio MCP server 启动；它只读取本地 Sidecar HTTP API
 - 自定义服务端口时，在 MCP 进程环境中设置 `PROMPT_SIDECAR_URL`，例如
-  `http://127.0.0.1:9876`；默认地址为 `http://127.0.0.1:8765`，仅允许本机地址。
+  `http://127.0.0.1:9876`；默认地址为 `http://127.0.0.1:9876`，仅允许本机地址。
 
 ## 会话绑定
 
@@ -468,6 +468,24 @@ DSH、Claude 和 WorkBuddy Local 没有可靠的“当前活动会话”自动�
 
 这两个字段会作为内部输出契约传给润色模型，但最终提示词中会转换为自然中文的
 “输出要求”，不会暴露 `OUTPUT_CONTRACT`、`style:`、`structure:` 等内部标签。
+
+## 提示词配置
+
+高级选项旁的“配置提示词”可以编辑四种模式模板、三种风格模板、通用偏好和默认选项。
+保存后下一次润色读取新配置，已经生成的结果不会重新计算。
+
+- 内置默认模板位于 `backend/prompt_templates.py`。
+- 本机覆盖保存在被 Git 忽略的 `config/sidecar.config.json` 的
+  `prompt_settings.overrides` 下；与内置模板相同的值不会写入。
+- `GET /api/prompt-config` 返回内置值、覆盖值、生效值和预览；
+  `POST /api/prompt-config` 接收生效模板并自动压缩为覆盖项。
+- 基础保真规则、上下文边界和 Agent 执行协议仍由 `backend/server.py` 统一维护。
+  Agent 结果不会再由后处理强行补回用户删除的模板内容。
+
+后续增加自定义模式时，需要在 `backend/prompt_templates.py` 注册模式键，在后端校验集合、
+模板配置接口和 `build_request_prompt` 的模式分支中接入，再在前端模式按钮和配置弹窗增加标签。
+模板导入导出可以复用 `prompt_settings.overrides` 结构，增加 JSON 文件下载、上传和 schema
+版本字段，并在服务端校验未知键、长度和版本后再保存。
 
 ## 日志与隐私
 

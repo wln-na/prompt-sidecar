@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
@@ -41,6 +42,36 @@ class PolishApiTests(unittest.TestCase):
         except HTTPError as exc:
             return {"status": exc.code, **json.load(exc)}
 
+    def test_prompt_config_endpoint_persists_overrides_without_restart(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "sidecar.config.json"
+            config_path.write_text("{}", encoding="utf-8")
+            with patch.object(server, "CONFIG_PATH", config_path):
+                with urlopen(Request(f"{self.base_url}/api/prompt-config")) as response:
+                    initial = json.load(response)
+                changed = {
+                    **initial["effective"],
+                    "modes": {
+                        **initial["effective"]["modes"],
+                        "quick": "接口保存后的模式规则",
+                    },
+                }
+                request = Request(
+                    f"{self.base_url}/api/prompt-config",
+                    data=json.dumps(changed, ensure_ascii=False).encode("utf-8"),
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                with urlopen(request) as response:
+                    saved = json.load(response)
+
+            self.assertEqual(saved["effective"]["modes"]["quick"], "接口保存后的模式规则")
+            stored = json.loads(config_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                stored["prompt_settings"]["overrides"]["modes"],
+                {"quick": "接口保存后的模式规则"},
+            )
+
     def test_standalone_explicit_context_is_headless_and_correlated(self) -> None:
         with patch("server.call_model", return_value="polished") as call_model:
             with patch("server.resolve_bridge", side_effect=AssertionError("bridge lookup")):
@@ -76,7 +107,7 @@ class PolishApiTests(unittest.TestCase):
             )
 
         self.assertEqual(result["status"], 200)
-        self.assertIn("Codex 执行协议：", result["polished"])
+        self.assertEqual(result["polished"], "codex task prompt")
         prompt = call_model.call_args.args[0]
         for phrase in ("Planner", "Agent Team", "Subagent", "多会话通信", "完成条件"):
             with self.subTest(phrase=phrase):

@@ -30,6 +30,7 @@ const state = {
         version: "",
         apiBase: "",
     },
+    promptConfig: null,
 };
 const $ = (selector) => document.querySelector(selector);
 const draftEl = $("#draft");
@@ -54,6 +55,10 @@ const sessionFilter = $("#session-filter");
 const sessionPlatforms = $("#session-platforms");
 const settingsModal = $("#settings-modal");
 const settingsBody = $("#settings-body");
+const promptSettingsModal = $("#prompt-settings-modal");
+const promptTemplateEl = $("#prompt-template");
+const promptPreferencesEl = $("#prompt-preferences");
+const promptPreviewEl = $("#prompt-config-preview");
 const bridgeStatus = $("#bridge-status");
 const sendModeRow = $("#send-mode-row");
 const sendModeGroup = $("#send-mode-group");
@@ -1080,7 +1085,7 @@ function resolveApiBase() {
     const raw = new URLSearchParams(window.location.search).get("api");
     const fallback = isLoopbackHostname(window.location.hostname)
         ? ""
-        : "http://127.0.0.1:8765";
+        : "http://127.0.0.1:9876";
     if (!raw) return fallback;
     try {
         const parsed = new URL(raw, window.location.href);
@@ -1140,6 +1145,169 @@ async function fetchJson(url, options = {}) {
         throw error;
     }
     return data;
+}
+
+const promptLabels = {
+    modes: { quick: "快速", structured: "结构化", agent: "Agent", system: "系统提示词" },
+    styles: { concise: "精简", standard: "标准", detailed: "详细" },
+};
+
+function copyPromptConfig(data) {
+    return JSON.parse(JSON.stringify(data));
+}
+
+function promptConfigValues() {
+    return state.promptConfig && state.promptConfig.effective;
+}
+
+function applyPromptDefaults() {
+    const effective = promptConfigValues();
+    if (!effective) return;
+    state.mode = effective.defaults.mode;
+    state.outputStyle = effective.defaults.style;
+    state.outputStructure = effective.defaults.output_structure.join(",");
+    $("#output-structure").value = state.outputStructure;
+    $("#output-style").value = state.outputStyle;
+    document.querySelectorAll(".mode").forEach((button) => {
+        button.classList.toggle("active", button.dataset.mode === state.mode);
+    });
+}
+
+function renderPromptConfigSelectors() {
+    const kindEl = $("#prompt-config-kind");
+    const kind = kindEl.value || "modes";
+    kindEl.value = kind;
+    const itemEl = $("#prompt-config-item");
+    const keys = Object.keys(promptConfigValues()[kind]);
+    itemEl.innerHTML = keys.map((key) => (
+        `<option value="${key}">${promptLabels[kind][key] || key}</option>`
+    )).join("");
+    if (!itemEl.value) itemEl.value = keys[0] || "";
+    renderPromptTemplate();
+}
+
+function renderPromptTemplate() {
+    const effective = promptConfigValues();
+    if (!effective) return;
+    const kind = $("#prompt-config-kind").value || "modes";
+    const key = $("#prompt-config-item").value;
+    promptTemplateEl.value = effective[kind][key] || "";
+    promptPreferencesEl.value = effective.general_preferences || "";
+    renderPromptPreview();
+}
+
+function renderPromptPreview() {
+    const effective = promptConfigValues();
+    if (!effective) return;
+    const defaults = effective.defaults;
+    const mode = defaults.mode;
+    const style = defaults.style;
+    promptPreviewEl.textContent = [
+        `默认模式：${promptLabels.modes[mode] || mode}`,
+        `默认风格：${promptLabels.styles[style] || style}`,
+        `默认结构：${defaults.output_structure.join("、")}`,
+        "",
+        `模式规则：${effective.modes[mode]}`,
+        "",
+        `风格规则：${effective.styles[style]}`,
+        "",
+        `通用偏好：${effective.general_preferences || "（未配置通用偏好）"}`,
+    ].join("\n");
+}
+
+function updatePromptConfigFromForm() {
+    const effective = promptConfigValues();
+    if (!effective) return;
+    const kind = $("#prompt-config-kind").value || "modes";
+    const key = $("#prompt-config-item").value || Object.keys(effective[kind])[0];
+    effective[kind][key] = promptTemplateEl.value;
+    effective.general_preferences = promptPreferencesEl.value;
+    effective.defaults.mode = $("#prompt-default-mode").value;
+    effective.defaults.style = $("#prompt-default-style").value;
+    effective.defaults.output_structure = normalizePromptStructure(
+        $("#prompt-default-structure").value,
+    );
+    renderPromptPreview();
+}
+
+function normalizePromptStructure(value) {
+    const parts = String(value || "").split(/[,，、|\n]+/)
+        .map((part) => part.trim()).filter(Boolean).slice(0, 8);
+    return parts.length ? parts : ["结论", "变更", "验证", "限制", "下一步"];
+}
+
+function renderPromptSettingsDialog() {
+    const effective = promptConfigValues();
+    if (!effective) return;
+    $("#prompt-default-mode").innerHTML = Object.keys(promptLabels.modes).map((key) => (
+        `<option value="${key}">${promptLabels.modes[key]}</option>`
+    )).join("");
+    $("#prompt-default-style").innerHTML = Object.keys(promptLabels.styles).map((key) => (
+        `<option value="${key}">${promptLabels.styles[key]}</option>`
+    )).join("");
+    $("#prompt-default-mode").value = effective.defaults.mode;
+    $("#prompt-default-style").value = effective.defaults.style;
+    $("#prompt-default-structure").value = effective.defaults.output_structure.join(",");
+    $("#prompt-config-status").textContent = "仅保存与内置模板不同的内容";
+    renderPromptConfigSelectors();
+}
+
+async function loadPromptConfig() {
+    try {
+        const data = await fetchJson("/api/prompt-config");
+        state.promptConfig = copyPromptConfig(data);
+        applyPromptDefaults();
+        return data;
+    } catch (error) {
+        state.promptConfig = null;
+        showToast(error.message || "读取提示词配置失败");
+        return null;
+    }
+}
+
+async function openPromptSettingsModal() {
+    promptSettingsModal.classList.remove("hidden");
+    $("#prompt-config-status").textContent = "正在读取配置...";
+    const data = await loadPromptConfig();
+    if (data) renderPromptSettingsDialog();
+}
+
+function closePromptSettingsModal() {
+    promptSettingsModal.classList.add("hidden");
+}
+
+async function savePromptSettings() {
+    if (!state.promptConfig) return;
+    updatePromptConfigFromForm();
+    const saveButton = $("#prompt-settings-save");
+    saveButton.disabled = true;
+    try {
+        const data = await fetchJson("/api/prompt-config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(state.promptConfig.effective),
+        });
+        state.promptConfig = copyPromptConfig(data);
+        applyPromptDefaults();
+        closePromptSettingsModal();
+        showToast("提示词配置已保存并生效");
+    } catch (error) {
+        showToast(error.message || "保存提示词配置失败");
+    } finally {
+        saveButton.disabled = false;
+    }
+}
+
+function resetCurrentPromptTemplate() {
+    const kind = $("#prompt-config-kind").value;
+    const key = $("#prompt-config-item").value;
+    promptConfigValues()[kind][key] = state.promptConfig.builtins[kind][key];
+    renderPromptTemplate();
+}
+
+function resetPromptPreferences() {
+    promptConfigValues().general_preferences = state.promptConfig.builtins.general_preferences;
+    renderPromptTemplate();
 }
 
 function applyBridgeConfig(data) {
@@ -1604,6 +1772,26 @@ $("#settings-save").addEventListener("click", saveSettings);
 settingsModal.addEventListener("click", (event) => {
     if (event.target === settingsModal) closeSettingsModal();
 });
+$("#open-prompt-settings").addEventListener("click", (event) => {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    openPromptSettingsModal();
+});
+$("#close-prompt-settings").addEventListener("click", closePromptSettingsModal);
+$("#prompt-settings-cancel").addEventListener("click", closePromptSettingsModal);
+$("#prompt-settings-save").addEventListener("click", savePromptSettings);
+promptSettingsModal.addEventListener("click", (event) => {
+    if (event.target === promptSettingsModal) closePromptSettingsModal();
+});
+$("#prompt-config-kind").addEventListener("change", renderPromptConfigSelectors);
+$("#prompt-config-item").addEventListener("change", renderPromptTemplate);
+promptTemplateEl.addEventListener("input", updatePromptConfigFromForm);
+promptPreferencesEl.addEventListener("input", updatePromptConfigFromForm);
+$("#prompt-default-mode").addEventListener("change", updatePromptConfigFromForm);
+$("#prompt-default-style").addEventListener("change", updatePromptConfigFromForm);
+$("#prompt-default-structure").addEventListener("input", updatePromptConfigFromForm);
+$("#prompt-reset-current").addEventListener("click", resetCurrentPromptTemplate);
+$("#prompt-reset-preferences").addEventListener("click", resetPromptPreferences);
 $("#refresh-sessions").addEventListener("click", async () => {
     await loadSessions();
     showToast("会话列表已刷新");
@@ -1658,6 +1846,7 @@ async function initialize() {
     await loadBootstrap();
     updateSourceUi();
     await Promise.allSettled([
+        loadPromptConfig(),
         loadBridgeStatus(),
         loadSessions(),
         loadContext(cleanSessionId(urlParams.get("session_id")), urlParams.get("source")),

@@ -103,6 +103,51 @@ class PromptSidecarTests(unittest.TestCase):
         self.assertIn("structure: 结论 > 变更 > 验证 > 限制 > 下一步", prompt)
         self.assertIn("Do not expose internal labels", prompt)
 
+    def test_prompt_settings_store_only_overrides_and_change_prompt_composition(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "sidecar.config.json"
+            config_path.write_text(json.dumps({"bridges": {"fixture": {"adapter": "codex"}}}), encoding="utf-8")
+            with patch.object(server, "CONFIG_PATH", config_path):
+                payload = server.save_prompt_settings({
+                    "modes": {**server.BUILTIN_MODE_TEMPLATES, "quick": "用户模式规则"},
+                    "styles": server.BUILTIN_STYLE_TEMPLATES,
+                    "general_preferences": "使用中文并保留专业术语",
+                    "defaults": {
+                        "mode": "agent",
+                        "style": "detailed",
+                        "output_structure": ["结论", "证据"],
+                    },
+                })
+                stored = json.loads(config_path.read_text(encoding="utf-8"))
+                overrides = stored["prompt_settings"]["overrides"]
+                self.assertEqual(overrides["modes"], {"quick": "用户模式规则"})
+                self.assertNotIn("styles", overrides)
+                self.assertEqual(payload["effective"]["modes"]["quick"], "用户模式规则")
+                prompt = server.build_request_prompt("草稿", "quick", "上下文")
+                self.assertIn("用户模式规则", prompt)
+                self.assertIn("使用中文并保留专业术语", prompt)
+                self.assertIn("style: concise", prompt)
+
+    def test_prompt_settings_reset_removes_local_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "sidecar.config.json"
+            config_path.write_text("{}", encoding="utf-8")
+            with patch.object(server, "CONFIG_PATH", config_path):
+                server.save_prompt_settings({
+                    "modes": {**server.BUILTIN_MODE_TEMPLATES, "quick": "自定义"},
+                    "styles": server.BUILTIN_STYLE_TEMPLATES,
+                    "general_preferences": "",
+                    "defaults": server.DEFAULT_PROMPT_SELECTION,
+                })
+                server.save_prompt_settings({
+                    "modes": server.BUILTIN_MODE_TEMPLATES,
+                    "styles": server.BUILTIN_STYLE_TEMPLATES,
+                    "general_preferences": "",
+                    "defaults": server.DEFAULT_PROMPT_SELECTION,
+                })
+                stored = json.loads(config_path.read_text(encoding="utf-8"))
+                self.assertNotIn("prompt_settings", stored)
+
     def test_agent_prompt_uses_fixed_codex_execution_contract(self) -> None:
         prompt = server.build_request_prompt("完成这个事项", "agent", "USER: context")
 
@@ -148,12 +193,10 @@ class PromptSidecarTests(unittest.TestCase):
         self.assertIn("普通实现决策由 Codex 主 Agent 自主选择", prompt)
         self.assertIn("多会话通信", prompt)
 
-    def test_agent_contract_is_added_when_model_omits_it(self) -> None:
+    def test_agent_result_is_not_modified_after_model_response(self) -> None:
         result = server.ensure_codex_agent_contract("任务提示", "agent")
 
-        self.assertIn("任务提示", result)
-        self.assertIn("Codex 执行协议：", result)
-        self.assertIn("Agent Team", result)
+        self.assertEqual(result, "任务提示")
         self.assertEqual(server.ensure_codex_agent_contract("任务提示", "quick"), "任务提示")
 
     def test_request_path_without_query(self) -> None:
@@ -264,7 +307,7 @@ class PromptSidecarTests(unittest.TestCase):
                                     {
                                         "kind": "browser",
                                         "tabId": "browser-use:test",
-                                        "params": {"restoreUrl": "http://127.0.0.1:8765/"},
+                                        "params": {"restoreUrl": "http://127.0.0.1:9876/"},
                                     }
                                 ],
                                 "topology": {
@@ -303,7 +346,7 @@ class PromptSidecarTests(unittest.TestCase):
                                     {
                                         "kind": "browser",
                                         "tabId": "tab-a",
-                                        "params": {"restoreUrl": "http://127.0.0.1:8765/"},
+                                        "params": {"restoreUrl": "http://127.0.0.1:9876/"},
                                     }
                                 ],
                                 "topology": {"right": {"open": True, "tabIds": ["tab-a"]}},
@@ -313,7 +356,7 @@ class PromptSidecarTests(unittest.TestCase):
                                     {
                                         "kind": "browser",
                                         "tabId": "tab-b",
-                                        "params": {"restoreUrl": "http://127.0.0.1:8765/"},
+                                        "params": {"restoreUrl": "http://127.0.0.1:9876/"},
                                     }
                                 ],
                                 "topology": {"right": {"open": True, "tabIds": ["tab-b"]}},

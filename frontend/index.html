@@ -78,7 +78,7 @@
                 </div>
 
                 <details class="advanced-options">
-                    <summary>高级选项</summary>
+                    <summary><span>高级选项</span><button id="open-prompt-settings" class="small-button ghost" type="button">配置提示词</button></summary>
                     <div class="advanced-options-body">
                         <div class="mode-row">
                             <span class="field-label compact">模式</span>
@@ -187,6 +187,58 @@
                 </div>
             </section>
         </main>
+    </div>
+    <div id="prompt-settings-modal" class="modal-overlay hidden">
+        <div class="modal prompt-settings-modal" role="dialog" aria-modal="true" aria-label="配置提示词">
+            <div class="modal-head">
+                <div>
+                    <span class="eyebrow">PROMPT SETTINGS</span>
+                    <h2>配置提示词</h2>
+                    <p class="modal-subtitle">修改后从下一次润色开始生效，已生成结果不会改变。</p>
+                </div>
+                <button id="close-prompt-settings" class="icon-button" type="button" title="关闭">✕</button>
+            </div>
+            <div class="prompt-settings-grid">
+                <label class="settings-picker-label" for="prompt-config-kind">编辑项</label>
+                <select id="prompt-config-kind" class="bridge-selector">
+                    <option value="modes">模式模板</option>
+                    <option value="styles">风格模板</option>
+                </select>
+                <label class="settings-picker-label" for="prompt-config-item">具体模板</label>
+                <select id="prompt-config-item" class="bridge-selector"></select>
+            </div>
+            <div class="prompt-template-field">
+                <div class="prompt-field-heading">
+                    <label for="prompt-template">模板内容</label>
+                    <button id="prompt-reset-current" class="small-button ghost" type="button">恢复当前默认</button>
+                </div>
+                <textarea id="prompt-template" rows="7"></textarea>
+            </div>
+            <div class="prompt-template-field">
+                <div class="prompt-field-heading">
+                    <label for="prompt-preferences">通用偏好</label>
+                    <button id="prompt-reset-preferences" class="small-button ghost" type="button">恢复默认</button>
+                </div>
+                <textarea id="prompt-preferences" rows="3" placeholder="例如：使用中文，保留专业术语，少用空泛的开场白"></textarea>
+            </div>
+            <div class="prompt-defaults">
+                <span class="settings-picker-label">默认选项</span>
+                <label>模式<select id="prompt-default-mode" class="bridge-selector"></select></label>
+                <label>风格<select id="prompt-default-style" class="bridge-selector"></select></label>
+                <label>结构<input id="prompt-default-structure" type="text"></label>
+            </div>
+            <div class="prompt-preview-block">
+                <div class="prompt-field-heading"><span>生效规则预览</span><span class="muted">保存前实时更新</span></div>
+                <pre id="prompt-config-preview"></pre>
+            </div>
+            <div class="modal-foot">
+                <span id="prompt-config-status" class="muted"></span>
+                <div class="modal-actions">
+                    <button id="prompt-settings-cancel" class="small-button ghost" type="button">取消</button>
+                    <button id="prompt-settings-save" class="small-button" type="button">保存</button>
+                </div>
+            </div>
+        </div>
     </div>
     <div id="settings-modal" class="modal-overlay hidden">
         <div class="modal" role="dialog" aria-label="桥接设置">

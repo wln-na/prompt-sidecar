@@ -17,7 +17,7 @@ from scripts import prompt_sidecar_mcp as mcp
 class McpEndpointTests(unittest.TestCase):
     def test_default_endpoint(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(mcp.sidecar_endpoint(), "http://127.0.0.1:8765")
+            self.assertEqual(mcp.sidecar_endpoint(), "http://127.0.0.1:9876")
 
     def test_allowed_loopback_origins(self) -> None:
         for value in (

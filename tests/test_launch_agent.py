@@ -111,7 +111,7 @@ class LaunchAgentGeneratorTests(unittest.TestCase):
                     "--log-dir",
                     str(log_dir),
                     "--port",
-                    "8765",
+                    "9876",
                 ],
                 check=True,
                 env={**__import__("os").environ, "PYTHONDONTWRITEBYTECODE": "1"},

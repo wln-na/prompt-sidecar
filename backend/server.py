@@ -44,13 +44,14 @@ from bridges import (
     retag_sessions,
     unsupported_model_selection,
 )
+from prompt_templates import BUILTIN_MODE_TEMPLATES, BUILTIN_STYLE_TEMPLATES
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 STATE_DB = CODEX_HOME / "state_5.sqlite"
 GLOBAL_STATE = CODEX_HOME / ".codex-global-state.json"
-SIDECAR_URL_MARKER = "127.0.0.1:8765"
+SIDECAR_URL_MARKER = "127.0.0.1:9876"
 APP_VERSION = "0.4.0"
 CODEX_BIN = os.environ.get("CODEX_BIN") or shutil.which("codex") or ""
 ALLOWED_MODES = {"quick", "structured", "agent", "system"}
@@ -84,6 +85,12 @@ HUMAN_DECISION_TYPES = {
     "explicit_human_gate",
 }
 DEFAULT_OUTPUT_STRUCTURE = ["结论", "变更", "验证", "限制", "下一步"]
+DEFAULT_PROMPT_SELECTION = {
+    "mode": "quick",
+    "style": "concise",
+    "output_structure": DEFAULT_OUTPUT_STRUCTURE,
+}
+PROMPT_CONFIG_MAX_CHARS = 8_000
 CODEX_EXECUTION_PROTOCOL = """Codex 执行协议：
 1. 当前 Codex 主 Agent 是任务总指挥，负责理解目标、组织执行、统一决策和最终交付。
 2. 直接使用 Codex 原生 Planner、Agent Team、Subagent 和多会话通信能力。
@@ -375,6 +382,156 @@ def _normalize_sidecar_paths(
 def load_sidecar_config() -> dict[str, Any]:
     data = _read_sidecar_config()
     return _normalize_sidecar_paths(_deep_merge_config(DEFAULT_SIDECAR_CONFIG, data), data)
+
+
+def _prompt_text(value: Any, field: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    if len(value) > PROMPT_CONFIG_MAX_CHARS:
+        raise ValueError(f"{field} is too long")
+    return value
+
+
+def _prompt_overrides() -> dict[str, Any]:
+    data = _read_sidecar_config().get("prompt_settings", {})
+    if not isinstance(data, dict):
+        return {}
+    overrides = data.get("overrides", data)
+    return overrides if isinstance(overrides, dict) else {}
+
+
+def load_prompt_settings() -> dict[str, Any]:
+    """Return built-ins, persisted overrides, effective templates and defaults."""
+    overrides = _prompt_overrides()
+    modes = dict(BUILTIN_MODE_TEMPLATES)
+    styles = dict(BUILTIN_STYLE_TEMPLATES)
+    for key in ALLOWED_MODES:
+        value = overrides.get("modes", {}).get(key) if isinstance(overrides.get("modes"), dict) else None
+        if isinstance(value, str) and len(value) <= PROMPT_CONFIG_MAX_CHARS:
+            modes[key] = value
+    for key in ALLOWED_OUTPUT_STYLES:
+        value = overrides.get("styles", {}).get(key) if isinstance(overrides.get("styles"), dict) else None
+        if isinstance(value, str) and len(value) <= PROMPT_CONFIG_MAX_CHARS:
+            styles[key] = value
+    preferences = overrides.get("general_preferences", "")
+    if not isinstance(preferences, str) or len(preferences) > PROMPT_CONFIG_MAX_CHARS:
+        preferences = ""
+    defaults = dict(DEFAULT_PROMPT_SELECTION)
+    configured_defaults = overrides.get("defaults", {})
+    if isinstance(configured_defaults, dict):
+        mode = configured_defaults.get("mode")
+        style = configured_defaults.get("style")
+        structure = configured_defaults.get("output_structure")
+        if mode in ALLOWED_MODES:
+            defaults["mode"] = mode
+        if style in ALLOWED_OUTPUT_STYLES:
+            defaults["style"] = style
+        if structure is not None:
+            defaults["output_structure"] = normalize_output_structure(structure)
+    return {
+        "builtins": {
+            "modes": dict(BUILTIN_MODE_TEMPLATES),
+            "styles": dict(BUILTIN_STYLE_TEMPLATES),
+            "general_preferences": "",
+            "defaults": dict(DEFAULT_PROMPT_SELECTION),
+        },
+        "overrides": json.loads(json.dumps(overrides)),
+        "effective": {
+            "modes": modes,
+            "styles": styles,
+            "general_preferences": preferences,
+            "defaults": defaults,
+        },
+    }
+
+
+def _write_sidecar_config(config: dict[str, Any]) -> None:
+    CONFIG_PATH.write_text(
+        json.dumps(config, ensure_ascii=False, indent=4) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_prompt_settings(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist only values that differ from built-in prompt templates."""
+    current = load_prompt_settings()["effective"]
+    modes = payload.get("modes", current["modes"])
+    styles = payload.get("styles", current["styles"])
+    if not isinstance(modes, dict) or not isinstance(styles, dict):
+        raise ValueError("modes and styles must be objects")
+    effective_modes = {
+        key: _prompt_text(modes.get(key, BUILTIN_MODE_TEMPLATES[key]), f"modes.{key}")
+        for key in ALLOWED_MODES
+    }
+    effective_styles = {
+        key: _prompt_text(styles.get(key, BUILTIN_STYLE_TEMPLATES[key]), f"styles.{key}")
+        for key in ALLOWED_OUTPUT_STYLES
+    }
+    preferences = _prompt_text(
+        payload.get("general_preferences", current["general_preferences"]),
+        "general_preferences",
+    )
+    configured_defaults = payload.get("defaults", current["defaults"])
+    if not isinstance(configured_defaults, dict):
+        raise ValueError("defaults must be an object")
+    mode = configured_defaults.get("mode", DEFAULT_PROMPT_SELECTION["mode"])
+    style = configured_defaults.get("style", DEFAULT_PROMPT_SELECTION["style"])
+    if mode not in ALLOWED_MODES or style not in ALLOWED_OUTPUT_STYLES:
+        raise ValueError("Unsupported prompt defaults")
+    structure = normalize_output_structure(configured_defaults.get("output_structure"))
+    stored: dict[str, Any] = {}
+    mode_overrides = {
+        key: value for key, value in effective_modes.items()
+        if value != BUILTIN_MODE_TEMPLATES[key]
+    }
+    style_overrides = {
+        key: value for key, value in effective_styles.items()
+        if value != BUILTIN_STYLE_TEMPLATES[key]
+    }
+    if mode_overrides:
+        stored["modes"] = mode_overrides
+    if style_overrides:
+        stored["styles"] = style_overrides
+    if preferences:
+        stored["general_preferences"] = preferences
+    default_overrides: dict[str, Any] = {}
+    if mode != DEFAULT_PROMPT_SELECTION["mode"]:
+        default_overrides["mode"] = mode
+    if style != DEFAULT_PROMPT_SELECTION["style"]:
+        default_overrides["style"] = style
+    if structure != DEFAULT_OUTPUT_STRUCTURE:
+        default_overrides["output_structure"] = structure
+    if default_overrides:
+        stored["defaults"] = default_overrides
+    config = _read_sidecar_config()
+    if stored:
+        config["prompt_settings"] = {"overrides": stored}
+    else:
+        config.pop("prompt_settings", None)
+    try:
+        _write_sidecar_config(config)
+    except OSError as exc:
+        raise RuntimeError(f"无法写入提示词配置 {CONFIG_PATH}: {exc}") from exc
+    return prompt_config_payload()
+
+
+def prompt_rules_preview(settings: dict[str, Any]) -> str:
+    effective = settings["effective"]
+    defaults = effective["defaults"]
+    preferences = effective["general_preferences"].strip() or "（未配置通用偏好）"
+    return (
+        f"默认模式：{defaults['mode']}\n"
+        f"默认风格：{defaults['style']}\n"
+        f"默认结构：{'、'.join(defaults['output_structure'])}\n\n"
+        f"模式规则：{effective['modes'][defaults['mode']]}\n\n"
+        f"风格规则：{effective['styles'][defaults['style']]}\n\n"
+        f"通用偏好：{preferences}"
+    )
+
+
+def prompt_config_payload() -> dict[str, Any]:
+    settings = load_prompt_settings()
+    return {**settings, "preview": prompt_rules_preview(settings)}
 
 
 def _normalized_origin(value: Any) -> str:
@@ -3224,42 +3381,16 @@ def build_request_prompt(
     output_style: str = "concise",
     output_structure: Any = None,
 ) -> str:
-    mode_rules = {
-        "quick": "Keep the result concise and directly copy-ready. This mode only rewrites the request.",
-        "structured": (
-            "Use clear sections: Goal, Context, Task, Constraints, Output format, and "
-            "Acceptance criteria. This mode only rewrites the request; omit sections that would "
-            "only add empty boilerplate."
-        ),
-        "agent": (
-            "Write a directly executable Codex coding-agent task prompt. Include the fixed Codex execution "
-            "protocol below, then organize the prompt as task goal, current context, execution "
-            "protocol, subtask and multi-session collaboration requirements, completion criteria, "
-            "verification, human decision gates, and output requirements. Preserve the user's "
-            "scope and include a rule not to commit or push unless explicitly requested."
-        ),
-        "system": (
-            "Write a reusable system prompt. This mode only rewrites the requested instruction. "
-            "Include role, responsibilities, boundaries, tool use, uncertainty handling, and "
-            "output habits."
-        ),
-    }
-    structure = normalize_output_structure(output_structure)
-    style_rules = {
-        "concise": (
-            "First line must give the conclusion. Use at most 1-3 bullets per section. "
-            "Omit empty sections. Do not repeat the request or add generic closings."
-        ),
-        "standard": (
-            "Give the conclusion first, then use the requested sections with supporting evidence. "
-            "Use at most 3-5 bullets per section and omit empty sections."
-        ),
-        "detailed": (
-            "Give the conclusion first, then use the requested sections with evidence and risks. "
-            "Keep detail useful; do not restate the request or duplicate facts."
-        ),
-    }
+    prompt_settings = load_prompt_settings()["effective"]
+    structure = normalize_output_structure(
+        output_structure if output_structure is not None
+        else prompt_settings["defaults"]["output_structure"]
+    )
+    mode_rules = prompt_settings["modes"]
+    style_rules = prompt_settings["styles"]
     agent_protocol = CODEX_EXECUTION_PROTOCOL if mode == "agent" else "[agent mode only]"
+    preferences = prompt_settings["general_preferences"].strip()
+    preference_block = f"\nUSER_PREFERENCES:\n{preferences}\n" if preferences else ""
     system = f"""You are Prompt Sidecar, a prompt editor that runs outside the user's main conversation.
 Rewrite the user's draft into a prompt another AI can execute.
 Preserve the user's intent, facts, constraints, language, and desired output type.
@@ -3285,6 +3416,7 @@ rules:
 {mode_rules[mode]}
 CODEX_AGENT_EXECUTION_PROTOCOL:
 {agent_protocol}
+{preference_block}
 Return only the final polished prompt. Do not wrap it in Markdown fences and do not add commentary.
 """
     context_block = context.strip() or "[No session context supplied.]"
@@ -3292,11 +3424,9 @@ Return only the final polished prompt. Do not wrap it in Markdown fences and do 
 
 
 def ensure_codex_agent_contract(text: str, mode: str) -> str:
-    """Guarantee the fixed Codex protocol in executable agent prompts."""
-    polished = text.strip()
-    if mode != "agent" or "Codex 执行协议：" in polished:
-        return polished
-    return f"{polished}\n\n{CODEX_EXECUTION_PROTOCOL}".strip()
+    """Keep model output intact after the editable prompt contract is applied."""
+    del mode
+    return text.strip()
 
 
 def parse_response_text(data: dict[str, Any]) -> str:
@@ -4321,6 +4451,9 @@ class PromptSidecarHandler(BaseHTTPRequestHandler):
                 "bridges": public_bridge_configs(),
             })
             return
+        if parsed.path == "/api/prompt-config":
+            self.respond_json({"ok": True, **prompt_config_payload()})
+            return
         self.serve_static(parsed.path)
 
     def do_OPTIONS(self) -> None:
@@ -4351,7 +4484,13 @@ class PromptSidecarHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
-        if path not in {"/api/polish", "/api/next-step", "/api/send", "/api/config"}:
+        if path not in {
+            "/api/polish",
+            "/api/next-step",
+            "/api/send",
+            "/api/config",
+            "/api/prompt-config",
+        }:
             self.respond_json({"error": "Not found"}, status=HTTPStatus.NOT_FOUND)
             return
         body: dict[str, Any] = {}
@@ -4372,6 +4511,9 @@ class PromptSidecarHandler(BaseHTTPRequestHandler):
                     "ok": True,
                     "bridges": public_bridge_configs(),
                 })
+                return
+            if path == "/api/prompt-config":
+                self.respond_json({"ok": True, **save_prompt_settings(body)})
                 return
             if path == "/api/next-step":
                 source = str(body.get("source", "")).strip() or "codex"
@@ -4434,13 +4576,16 @@ class PromptSidecarHandler(BaseHTTPRequestHandler):
             source = str(body.get("source", "")).strip() or None
             session_id = str(body.get("session_id", "")).strip() or None
             draft = str(body.get("draft", "")).strip()
-            mode = str(body.get("mode", "quick"))
+            prompt_defaults = load_prompt_settings()["effective"]["defaults"]
+            mode = str(body.get("mode", prompt_defaults["mode"]))
             use_context = bool(body.get("use_context", True))
             supplied_context = str(
                 body.get("supplied_context", body.get("context", ""))
             ).strip()
-            output_style = str(body.get("output_style", "concise")).strip() or "concise"
-            output_structure = normalize_output_structure(body.get("output_structure"))
+            output_style = str(body.get("output_style", prompt_defaults["style"])).strip()
+            output_structure = normalize_output_structure(
+                body.get("output_structure", prompt_defaults["output_structure"])
+            )
             if output_style not in ALLOWED_OUTPUT_STYLES:
                 raise ValueError("Unsupported output_style")
             if not draft:
@@ -4601,7 +4746,7 @@ def ensure_config_file() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the local Prompt Sidecar UI")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=9876)
     args = parser.parse_args()
     ensure_config_file()
     server = ThreadingHTTPServer((args.host, args.port), PromptSidecarHandler)

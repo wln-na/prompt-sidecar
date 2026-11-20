@@ -1,7 +1,7 @@
 # Prompt Sidecar bridge
 
 在 DeepSeek Harness Desktop 内运行一个仅绑定 `127.0.0.1` 的桥接服务，让本地
-Prompt Sidecar 面板（`http://127.0.0.1:8765`）可以把润色后的提示词送进 DSH 会话。
+Prompt Sidecar 面板（`http://127.0.0.1:9876`）可以把润色后的提示词送进 DSH 会话。
 
 ## 行为
 
