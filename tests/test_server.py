@@ -381,7 +381,7 @@ class PromptSidecarTests(unittest.TestCase):
         index_html = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
         project_root = Path(__file__).resolve().parents[1]
         self.assertIn('class="prompt-flow-illustration"', index_html)
-        self.assertIn('src="/prompt-flow.svg"', index_html)
+        self.assertIn('src="./prompt-flow.svg"', index_html)
         styles_css = (project_root / "frontend" / "styles.css").read_text(encoding="utf-8")
         self.assertIn(".prompt-flow-illustration img", styles_css)
         self.assertIn("max-width:100%", styles_css)
@@ -407,7 +407,7 @@ class PromptSidecarTests(unittest.TestCase):
         project_root = Path(__file__).resolve().parents[1]
         index_html = (project_root / "frontend" / "index.html").read_text(encoding="utf-8")
         favicon = project_root / "frontend" / "favicon.svg"
-        self.assertIn('<link rel="icon" href="/favicon.svg" type="image/svg+xml">', index_html)
+        self.assertIn('<link rel="icon" href="./favicon.svg" type="image/svg+xml">', index_html)
         self.assertTrue(favicon.is_file())
         self.assertIn("Prompt Sidecar", favicon.read_text(encoding="utf-8"))
 

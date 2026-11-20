@@ -1,6 +1,7 @@
 {
     "panel": {
         "allowed_origins": [
+            "https://wln-na.github.io",
             "https://app.promptsidecar.com"
         ]
     },

@@ -144,7 +144,10 @@ DEFAULT_MODEL_SELECTION: ModelSelectionConfig = {
 
 DEFAULT_SIDECAR_CONFIG: dict[str, Any] = {
     "panel": {
-        "allowed_origins": ["https://app.promptsidecar.com"],
+        "allowed_origins": [
+            "https://wln-na.github.io",
+            "https://app.promptsidecar.com",
+        ],
     },
     "bridges": {
         "codex": {

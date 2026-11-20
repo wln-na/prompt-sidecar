@@ -83,21 +83,21 @@ python3 backend/server.py
 ### HTTPS Agent 侧边栏
 
 面向普通用户的产品形态是“HTTPS 面板 + 本机连接器”。Agent 客户端的侧边栏可以打开
-部署后的 `https://app.promptsidecar.com`；网页面板通过本机连接器读取历史会话和调用本地
+部署后的 `https://wln-na.github.io/prompt-sidecar/`；网页面板通过本机连接器读取历史会话和调用本地
 桥接。网页本身不能直接访问用户电脑中的 Agent 文件，因此用户仍需先安装并启动本机
 Prompt Sidecar 服务。
 
 如果面板和连接器使用不同端口，可以通过 `api` 查询参数指定本机 API，例如：
 
 ```text
-https://app.promptsidecar.com/?api=http%3A%2F%2F127.0.0.1%3A9876
+https://wln-na.github.io/prompt-sidecar/?api=http%3A%2F%2F127.0.0.1%3A9876
 ```
 
 `api` 只接受 HTTP(S) loopback 地址；未指定时，本机页面使用当前来源，远程 HTTPS 面板
 默认尝试 `http://127.0.0.1:8765`。面板启动时先请求 `/api/bootstrap`，确认本机连接器
 在线后再读取桥接和会话。
 
-本机连接器默认允许示例产品来源 `https://app.promptsidecar.com`。自部署面板需要在
+本机连接器默认允许 GitHub Pages 和示例自定义域来源。自部署面板需要在
 `config/sidecar.config.json` 的 `panel.allowed_origins` 中加入完整来源，或设置环境变量：
 
 ```bash
@@ -113,10 +113,14 @@ Prompt Sidecar 服务端。
 
 仓库提供 `.github/workflows/deploy-pages.yml`，会把 `frontend/` 发布为 GitHub Pages
 静态站点。工作流运行成功后，在仓库 Settings → Pages 中确认 Source 使用 GitHub
-Actions，再在 Pages 的 Custom domain 中配置 `app.promptsidecar.com`。仅提交 `CNAME`
-文件不会自动完成自定义域名配置。
+Actions。GitHub Pages 会提供免费的项目子域名
+`https://wln-na.github.io/prompt-sidecar/`，不需要购买域名或配置 DNS。
 
-域名服务商需要添加以下记录之一：
+如果以后购买自己的域名，再在 Pages 的 Custom domain 中配置，例如
+`app.promptsidecar.com`，并在域名服务商添加 CNAME 记录。仅提交 `CNAME` 文件不会自动
+完成自定义域名配置。
+
+自定义域名的 DNS 记录示例：
 
 ```text
 app  CNAME  wln-na.github.io
